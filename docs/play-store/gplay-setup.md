@@ -121,14 +121,18 @@ Only releases with status draft may be created on draft app.
 | News / COVID-19 / Government / financial | No |
 | 素材（512×512 icon、1024×500 feature graphic、≥2 張手機截圖） | `assets-checklist.md`；icon 與 feature graphic 已備在 `assets/`，**截圖還沒有** |
 
-### D. 第一顆 AAB 走網頁上傳
+### D. ~~第一顆 AAB 走網頁上傳~~ —— **這條不成立，已實測推翻**
 
-Nyoki 的 runbook 記載：**新 App 的第一個 AAB 必須經 Play Console 網頁上傳，之後才能用 API。**
-我沒有獨立驗證這條限制（要驗就得先建 App），但照著做的成本是零 —— 反正 App setup
-沒完成前也發不了 closed release。
-
-Play Console → Testing → **Internal testing** → Create new release → 上傳 AAB → Save
-（內部測試不需送審）。
+> **2026-09-07 更正。** 本文原本沿用 Nyoki runbook 的記載：「新 App 的第一個 AAB 必須經
+> Play Console 網頁上傳，之後才能用 API」，並註明未獨立驗證。**實測結果是 API 直接就收了**：
+>
+> ```
+> gplay release --package com.megshao.exercise_rewards --track alpha --bundle ... 
+> → Creating edit... / Bundle uploaded: version code 1 / Track configured
+> ```
+>
+> 上傳與設定 track 都成功，所以**不需要**先用網頁上傳一次。
+> 真正會擋住你的是下一節那個 draft 限制，那是另一回事。
 
 ---
 
@@ -160,6 +164,31 @@ shasum -a 256 "$AAB" && stat -f%z "$AAB"
 | warning | `misplaced_files`：`BUNDLE-METADATA/.../app-metadata.properties` | AGP 自己放的，無害。Nyoki 基線也有 |
 | warning | **`advertising_id`：偵測到分析 SDK 但沒宣告 `AD_ID`，「without it the SDK reads zeros」** | **刻意如此，不要修。** 見 §4 |
 | info | 偵測到 Firebase Analytics / Crashlytics | 提醒要在 Data safety 揭露，已在 `data-safety.md` 做完 |
+
+### ⚠️ app 還是 draft 的時候：只能發 draft release
+
+App setup 的必填項沒完成前，app 在 Play 眼中是 draft，而 **draft app 只能有 draft release**。
+用預設的 `--status completed` 會被擋（實測）：
+
+```
+Error 400: Only releases with status draft may be created on draft app., badRequest
+```
+
+**這時候不必等** —— 加 `--status draft` 就能先把 AAB 送上去、掛在目標 track 上：
+
+```sh
+gplay release --package com.megshao.exercise_rewards --track alpha --status draft \
+  --bundle "$AAB" --release-notes @notes.json \
+  --version-name v1.0.0 --skip-metadata --skip-screenshots
+```
+
+等 Console 那幾項（Data safety、內容分級、App content 聲明）填完、app 脫離 draft 之後，
+再把 release 從 draft 改成 completed 發布出去。
+
+> **好消息：失敗的嘗試不會消耗 versionCode。** 上面那次 `completed` 失敗時已經印出
+> `Bundle uploaded: version code 1`，所以我擔心版號被佔掉（那會害你連 Console 都不能用
+> 同一個版號重傳）。實測 `gplay bundles list` 回空集合——**驗證失敗的 edit 連上傳一起被丟棄**。
+> 所以撞到這個錯誤時直接改旗標重跑就好，不用 bump 版號。
 
 ### 發到 closed testing（alpha）
 
