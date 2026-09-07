@@ -343,7 +343,27 @@ public object Telemetry {
         applyCollectionFlags(context, enabled && !isDemoMode)
         // 開啟時送一筆（同意後的第一個事件）；**關閉時不送任何事件**
         // ——使用者剛說不要，再送一筆等於沒聽到。
-        if (enabled) logEvent(context, AnalyticsEvent.telemetryPreferenceChanged(true))
+        if (enabled) {
+            logEvent(context, AnalyticsEvent.telemetryPreferenceChanged(true))
+        } else {
+            // **關掉不只是停止收集，還要把已經收集但還沒上傳的東西丟掉。**
+            //
+            // 只呼叫 setAnalyticsCollectionEnabled(false) 的話，佇列裡等著上傳的事件
+            // 與硬碟上等著上傳的當機報告仍然會在**下一次**符合條件時送出去——使用者按
+            // 下開關的意思是「不要送」，不是「從現在起不要再收集，但之前收的照送」。
+            //
+            // resetAnalyticsData() 一併重置裝置上的 app instance id，所以關掉之後
+            // 再打開，Google 端看到的是一支新的裝置，接不回關掉之前那條軌跡。
+            // 這是 iOS 端關閉開關時的行為（Analytics.resetAnalyticsData() +
+            // Crashlytics.deleteUnsentReports()），兩個平台的承諾必須一致，
+            // 否則 privacy 頁上那句話會有一邊是假的。
+            //
+            // 兩個都包 runCatching：這是「使用者要求關閉」的路徑，
+            // 絕不能因為清理失敗而讓關閉本身失敗。
+            runCatching { FirebaseAnalytics.getInstance(context).resetAnalyticsData() }
+            runCatching { FirebaseCrashlytics.getInstance().deleteUnsentReports() }
+            log.info("遙測已關閉，已收集但未上傳的資料一併清除")
+        }
     }
 
     /** 進出示範模式：SDK 層也一起關掉，不只靠 [gate]。 */
@@ -359,6 +379,7 @@ public object Telemetry {
         applyCollectionFlags(context, false)
         // 清掉已收集但還沒上傳的資料，以及裝置上的 app instance id。
         runCatching { FirebaseAnalytics.getInstance(context).resetAnalyticsData() }
+        runCatching { FirebaseCrashlytics.getInstance().deleteUnsentReports() }
         log.info("遙測偏好已重設，已收集的資料一併清除")
     }
 
