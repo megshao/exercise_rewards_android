@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 佔位用的向量圖示（純幾何、不含任何官方標誌）。設計稿到位後整份替換。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 L62,48 L82,48 L66,60 L72,79 L54,67 L36,79 L42,60 L26,48 L46,48 Z" />
+</vector>

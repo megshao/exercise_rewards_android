@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "把這個檔案複製成 app/google-services.json 並填入你自己 Firebase 專案的值。",
+    "沒有這個檔案時，google-services 與 crashlytics 兩個 plugin 不會被套用，",
+    "Telemetry 全程 no-op——App 仍然可以正常 build 與執行（見 README）。",
+    "package_name 必須與 applicationId 一致；debug build 有 .debug 後綴，",
+    "所以 Firebase Console 上要各建一個 Android app。"
+  ],
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "your-firebase-project-id",
+    "storage_bucket": "your-firebase-project-id.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "com.megshao.exerciserewards"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

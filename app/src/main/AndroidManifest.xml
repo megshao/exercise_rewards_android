@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 唯一需要的權限。刻意不宣告任何健康資料、位置、相機權限：
+         運動紀錄一律由使用者自己從相簿挑選（照 iOS 端的設計）。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".ExerciseRewardsApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.ExerciseRewards">
+
+        <!--
+            **把 Firebase 的自動初始化拆掉。這一行是「同意後才初始化」這個承諾的實作。**
+
+            firebase-common 會自己往 manifest 塞一個 `FirebaseInitProvider`。ContentProvider
+            的 onCreate **早於 Application.onCreate**，所以只要設定檔在，Firebase 就會在
+            App 啟動的那一刻被初始化——使用者連免責聲明都還沒看到。那會讓 README 裡
+            「同意之前不該出現任何 Google 網域」變成一句做不到的話。
+
+            這是 Android 特有的坑：iOS 端的 `FirebaseApp.configure()` 本來就要手動呼叫，
+            不做這件事也不會有問題。移掉之後由 `Telemetry.configure()` 明確初始化，
+            兩個平台的行為才真的一致。
+
+            移掉之前實測（logcat）：`FirebaseInitProvider: FirebaseApp initialization ...`
+            會出現在 process 啟動當下。移掉之後那一行完全不該出現，直到使用者按下同意。
+        -->
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            android:exported="false"
+            tools:node="remove" />
+
+        <!--
+            縱深防禦：就算哪天有人把上面那個 provider 加回來，這兩個旗標也讓 SDK
+            在被明確打開之前不主動蒐集。執行期的 setAnalyticsCollectionEnabled(true)
+            會覆蓋它們（見 Telemetry.applyUserPreference），所以同意之後照樣運作。
+        -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+        <!-- 不做廣告歸因，關掉相關訊號。 -->
+        <meta-data
+            android:name="google_analytics_default_allow_ad_personalization_signals"
+            android:value="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.ExerciseRewards">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
