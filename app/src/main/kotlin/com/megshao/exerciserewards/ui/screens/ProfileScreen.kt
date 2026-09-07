@@ -167,8 +167,13 @@ public fun ProfileScreen(onDataCleared: () -> Unit) {
                     modifier = Modifier.padding(start = 4.dp),
                 )
                 AppCard(padding = 0.dp) {
-                    if (isDemo) {
-                        // 只在示範模式下出現：讓審查員（或誤入的使用者）一鍵切回真實環境。
+                    // 只在示範模式下出現：讓審查員（或誤入的使用者）一鍵切回真實環境。
+                    //
+                    // 截圖模式下收起來，理由與示範模式橫幅完全相同（見 AppNavigation）：
+                    // 這一列真實使用者永遠看不到，放進商店素材反而**不準確**——會讓人以為
+                    // App 一直處於示範狀態。真機使用者與商店審查員都不可能觸發截圖模式，
+                    // 他們進示範模式時這一列一定照常出現。
+                    if (isDemo && !Telemetry.isScreenshotMode) {
                         SettingsRow(
                             icon = Icons.Filled.Visibility,
                             iconTint = Tokens.text,

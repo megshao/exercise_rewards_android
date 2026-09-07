@@ -246,7 +246,12 @@ class ScreenshotTest {
         rule.onNodeWithContentDescription("我的資料").performClick()
         awaitText("個資不外傳，只在登入時送給官方網站")
         capture("11-profile")
-        scrollToForFraming("傳送匿名使用統計")
+        // **捲到最後一列，而不是停在「傳送匿名使用統計」。** 兩個理由：
+        // 1. 「離開示範模式」是這張卡片的第一列（只在示範模式出現），停在中間會把它拍進去，
+        //    而這張是商店素材——會讓人誤以為 App 一直處於示範狀態。捲到底就推出畫面外了。
+        // 2. 捲到底的內容剛好更貼合「個資只留在手機」：加密說明、遙測開關、隱私權政策、
+        //    原始碼、一鍵清除，全都在同一屏。
+        scrollToForFraming("立即清除本機資料")
         capture("12-profile-security")
     }
 
