@@ -8,6 +8,10 @@
 > 每一項標了**預估時間**與**卡點**。⏱ 是你自己動手的時間，⏳ 是等別人（Google／測試者）的時間——
 > **⏳ 才是真正決定「今天能不能開始」的東西。**
 
+
+> 📌 **上傳與發版的實際操作**（gplay CLI 的連線設定、哪些只能在 Console 點、preflight 基線、發版指令）另見 [`gplay-setup.md`](gplay-setup.md)。
+> 那份是沿用 `~/Personal Projects/Nyoki` 已實跑過四次的設定——**同一個 Play 開發者帳號、同一個 service account**，機器側不需要重做。
+
 ---
 
 ## 0. 已經完成的（不用再做）
