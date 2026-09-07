@@ -22,6 +22,13 @@
         識別）。兩個 AdServices 權限只有歸因回報路徑會用到，沒有廣告來源可歸因時
         本來就不會被呼叫。
 
+        ⚠️ **`gplay preflight` 會對這件事發 warning，那條不要照它的 hint 修**：
+        「an ads/attribution SDK is present but AD_ID is not declared (targetSdk 37)
+        ... without it the SDK reads zeros」。工具假設你想要廣告識別碼；我們不要，
+        「reads zeros」正是預期結果——那條 warning 反而是移除確實生效的獨立證據。
+        把權限加回去會讓 Data safety 必須改答「收集廣告識別碼」，並與
+        site/privacy.html 第 4 節的承諾直接矛盾。詳見 docs/play-store/gplay-setup.md §4。
+
         驗證方式：`./gradlew :app:processReleaseMainManifest` 之後跑下面這段，
         應該印出 `AD_ID 命中: 0`。**不要直接對固定路徑下 grep -c**：AGP 的
         intermediates 路徑會隨版本改（這裡同時存在 merged_manifest 與
