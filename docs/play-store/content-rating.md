@@ -206,7 +206,7 @@ Summary 頁上算出來的分級**不一定就是使用者最後看到的**—�
 
 | 項目 | 建議答案 | 理由與注意事項 |
 |---|---|---|
-| **廣告（Ads）** | **否，不含廣告** | App 不投放任何廣告，`google_analytics_default_allow_ad_personalization_signals=false`。答否，商店頁就不會出現「含廣告」標籤。⚠️ **注意**：這一題問的是「有沒有顯示廣告」，與 `data-safety.md` §6 的**廣告識別碼權限**是兩件不同的事——AD_ID 權限仍在 merged manifest 裡，**那要另外處理**，不會因為這題答否而消失 |
+| **廣告（Ads）** | **否，不含廣告** | App 不投放任何廣告，`google_analytics_default_allow_ad_personalization_signals=false`。答否，商店頁就不會出現「含廣告」標籤。⚠️ **注意**：這一題問的是「有沒有顯示廣告」，與 `data-safety.md` §6 的**廣告識別碼權限**是兩件不同的事——AD_ID 權限**已於 2026-09-07 從 manifest 移除**並實測驗證（merged release manifest 與 AAB 皆零命中），所以那一格現在答「不使用廣告識別碼」是真的。這段原本警告「答否不會讓權限消失」——那個前提已經不存在 |
 | **應用程式存取權（App access）** | **部分功能需要登入 → 提供示範帳號** | 見下方 §5.1，這一格填錯會直接被退 |
 | **政府應用程式宣告（Government apps）** | **否，非政府機關開發／非代表政府** | 2023-01-31 起所有 App 都必須填這一項。本 App 是非官方個人工具，答「否」。**這一格與商店說明的非官方聲明必須一致** |
 | **健康應用程式宣告（Health apps）** | **必填，且要聲明「不提供健康功能」** | ⚠️ **這一項容易漏**：Google 明文「All developers with apps published on Google Play must complete the Health apps declaration form, **including apps that do not offer any health features** must complete this form and certify that no health features are offered」，而且條文含「**including apps on closed testing, open testing, or production tracks**」——**封測也躲不掉**。本 App 不讀任何健康資料、不提供任何健康或醫療功能 → 照實聲明「沒有」。**但要留意與 `data-safety.md` §4 的 Fitness info 決定是否看起來衝突**——那一格是「有沒有把運動紀錄截圖送出去」，這一格是「有沒有提供健康功能」，答案分別是「有送出」與「沒有功能」，並不矛盾，但**若被問到要能講清楚** |
