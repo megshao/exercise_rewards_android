@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    這個檔案存在的理由是「可查核性」，不是為了改變 release 的行為。
+
+    release：完全照平台預設——只信任系統憑證庫、不允許明文 HTTP。這裡把兩件事
+    寫明（`cleartextTrafficPermitted="false"`）只是讓它變成一行可以被 review 的宣告，
+    而不是一個「預設剛好如此」的隱含假設。
+
+    debug（`debug-overrides` 只在 `android:debuggable="true"` 時生效，release APK/AAB
+    根本不會套用這一段）：額外信任使用者安裝的憑證。
+
+    為什麼要這麼做：這個 App 的隱私權頁面請使用者「自己攔封包驗證我們有沒有說謊」，
+    而 Android 7 之後預設不信任使用者安裝的 CA，mitmproxy／Charles 對 release 版
+    一律攔不到。如果不開這扇門，那句邀請在 Android 上就是空話。開在 debug 版是
+    正確的位置：想查核的人 clone repo、`./gradlew :app:installDebug`，就能看到
+    完整的明文流量；而從 Play 裝到的 release 版維持嚴格預設，不因為方便查核而
+    對一般使用者降低安全性。
+
+    刻意**不做** certificate pinning——pinning 會讓上面那件事做不到。
+    威脅模型裡「使用者想檢查這個 App」的權重高於「防禦有能力在使用者裝置上
+    安裝 CA 的攻擊者」，因為後者早已控制了裝置。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
