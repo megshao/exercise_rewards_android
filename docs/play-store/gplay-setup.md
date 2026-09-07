@@ -307,3 +307,40 @@ warning  advertising_id
 
 所以「全自動上架」在 Google Play 上是做不到的。CLI 能自動化的是**第二次之後的每一次發版**，
 那才是它真正省時間的地方。
+
+---
+
+## 6. Console 上會出現、但**不要去追**的警告
+
+### 「這個 App Bundle 含有原生程式碼，而您尚未上傳偵錯符號檔」
+
+**結論：不用處理。** 這是警告不是錯誤，不擋發布。2026-09-07 查證過程與結論如下。
+
+這支 App 是純 Kotlin，原生碼全部來自相依：
+
+| `.so`（每個約 4–11 KB） | 來源 | 能不能移除 |
+|---|---|---|
+| `libandroidx.graphics.path.so` | Compose UI 的遞移相依 | 不能 |
+| `libdatastore_shared_counter.so` | `firebase-common` → `androidx.datastore` | 不能（除非不要 Firebase）。**我們的原始碼完全沒用到 DataStore**，它是 Firebase 拉進來的 |
+
+**為什麼不能靠 `ndk { debugSymbolLevel = ... }` 解決** —— 兩個獨立的原因，都實測過：
+
+1. **這台機器沒有安裝 NDK**（`$ANDROID_HOME/ndk` 不存在）。AGP 抽符號要用 NDK 的 `objcopy`，
+   開啟那個選項會直接讓 build 失敗，得先下載約 1 GB 的 NDK。
+2. **更關鍵：那兩個 `.so` 裡沒有符號可抽。** 解析 ELF section 的結果是只有 `.dynsym`
+   （216 與 480 bytes，就是那幾個匯出的 JNI 入口點），**沒有 `.symtab`、沒有 `.debug_info`**。
+   AndroidX 出貨時已經 strip 過。也就是說 Play 想要的符號**不存在於我們這邊任何地方**，
+   它們得由 AndroidX 自己的建置產生。就算裝了 NDK，抽出來的也會是空的。
+
+驗證方法（不需要 NDK）：
+
+```sh
+unzip -l app/build/outputs/bundle/release/app-release.aab | grep '\.so$'
+# 想確認有沒有符號，把 .so 解出來看 ELF section 有沒有 .symtab／.debug_info
+```
+
+**實務影響**：Crashlytics 處理的 JVM 當機涵蓋我們**全部**的程式碼；只有這兩個 AndroidX
+小工具庫內部的原生當機會缺符號，而那種當機本來就罕見，且無論如何都符號化不了。
+
+**還有一個成本**：versionCode 1 已經被上傳消耗掉了，所以「為了消掉這個警告而重新出一版」
+還要 bump 版號。不值得。真要處理就等下次版本升級時再一併評估。
