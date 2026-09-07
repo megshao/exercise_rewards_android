@@ -40,6 +40,8 @@ import com.megshao.exerciserewards.core.models.TaskPeriod
 import com.megshao.exerciserewards.core.models.TaskState
 import com.megshao.exerciserewards.core.models.canUpload
 import com.megshao.exerciserewards.core.models.current
+import com.megshao.exerciserewards.core.services.SiteHandoff
+import com.megshao.exerciserewards.core.services.SiteHandoffDestination
 import com.megshao.exerciserewards.telemetry.AnalyticsEvent
 import com.megshao.exerciserewards.telemetry.Endpoint
 import com.megshao.exerciserewards.telemetry.ScreenName
@@ -49,6 +51,8 @@ import com.megshao.exerciserewards.ui.appViewModel
 import com.megshao.exerciserewards.ui.components.LoadingBlock
 import com.megshao.exerciserewards.ui.components.PrimaryButton
 import com.megshao.exerciserewards.ui.components.SecondaryButton
+import com.megshao.exerciserewards.ui.components.SiteHandoffBanner
+import com.megshao.exerciserewards.ui.components.SiteHandoffMessage
 import com.megshao.exerciserewards.ui.components.StateMessage
 import com.megshao.exerciserewards.ui.components.TaskStateBadge
 import com.megshao.exerciserewards.ui.theme.Tokens
@@ -109,6 +113,13 @@ public fun TasksScreen(
             when {
                 state.isLoading && state.periods.isEmpty() -> LoadingBlock()
 
+                // 官網結構對不上（見 core 的 SiteHandoff.shouldHandoff）：不是網路問題，
+                // 不能再顯示「請確認網路連線」。說實話並交接到官網。
+                state.siteChangeSuspected && state.periods.isEmpty() -> SiteHandoffMessage(
+                    destination = SiteHandoffDestination.Tasks,
+                    onRetry = { viewModel.refresh(force = true) },
+                )
+
                 state.errorMessage != null && state.periods.isEmpty() -> StateMessage(
                     icon = Icons.Filled.Warning,
                     iconTint = Tokens.danger,
@@ -116,18 +127,27 @@ public fun TasksScreen(
                     onRetry = { viewModel.refresh(force = true) },
                 )
 
-                else -> state.periods.forEach { period ->
-                    TaskPeriodCard(
-                        period = period,
-                        isHighlighted = period.index == state.highlightedIndex,
-                        // 標記過已使用的券不再提供「檢視加碼券」（見 VoucherUsageStore）。
-                        isVoucherUsed = usedIds.contains(period.id) && period.id.isNotEmpty(),
-                        // 兌換本身在兌換頁有「確認兌換」二次確認，這裡不再多一道驗證。
-                        onRedeemTap = { onRedeem(period) },
-                        onScreenshotTap = { onScreenshot(period) },
-                        onVoucherTap = { onVoucher(period) },
-                        onUploadTap = { onUpload(period) },
-                    )
+                else -> {
+                    // 有快取時照舊顯示，但不再靜默：頂端講明白這可能是舊資料。
+                    if (state.showsSiteChangeBanner) {
+                        SiteHandoffBanner(
+                            destination = SiteHandoffDestination.Tasks,
+                            onDismiss = viewModel::dismissSiteChangeBanner,
+                        )
+                    }
+                    state.periods.forEach { period ->
+                        TaskPeriodCard(
+                            period = period,
+                            isHighlighted = period.index == state.highlightedIndex,
+                            // 標記過已使用的券不再提供「檢視加碼券」（見 VoucherUsageStore）。
+                            isVoucherUsed = usedIds.contains(period.id) && period.id.isNotEmpty(),
+                            // 兌換本身在兌換頁有「確認兌換」二次確認，這裡不再多一道驗證。
+                            onRedeemTap = { onRedeem(period) },
+                            onScreenshotTap = { onScreenshot(period) },
+                            onVoucherTap = { onVoucher(period) },
+                            onUploadTap = { onUpload(period) },
+                        )
+                    }
                 }
             }
 
@@ -303,6 +323,16 @@ public class TasksViewModel(
         val isLoading: Boolean = false,
         val isRefreshing: Boolean = false,
         val errorMessage: String? = null,
+        /**
+         * 最近一次抓取失敗是不是「官網結構對不上」（core 的 `SiteHandoff.shouldHandoff`）。
+         * 沒有資料時決定畫交接畫面而不是「請確認網路連線」；抓成功就歸零。
+         */
+        val siteChangeSuspected: Boolean = false,
+        /**
+         * 有快取時要不要在頂端掛「官網可能已改版」橫幅。使用者可以關掉，
+         * 但下一次 parse 再失敗會重新掛上——關掉的是這一次，不是這個功能。
+         */
+        val showsSiteChangeBanner: Boolean = false,
     ) {
         /**
          * 本週要置頂高亮的那一期 index。
@@ -351,6 +381,8 @@ public class TasksViewModel(
                     periods = sorted(fetched),
                     isLoading = false,
                     isRefreshing = false,
+                    siteChangeSuspected = false,
+                    showsSiteChangeBanner = false,
                 )
                 container.tasksCache.save(fetched)
                 Telemetry.logEvent(
@@ -376,10 +408,15 @@ public class TasksViewModel(
                         Telemetry.elapsedMs(startedAt),
                     ),
                 )
+                // 「官網結構對不上」與其他失敗分開處理：前者不是網路問題，畫面上不能再叫人
+                // 檢查網路；有快取時照舊沿用，但頂端掛橫幅講明白，不再靜默。
+                val siteChange = SiteHandoff.shouldHandoff(error)
                 _state.value = _state.value.copy(
                     isLoading = false,
                     isRefreshing = false,
-                    // 有快取就靜默沿用；完全沒資料才顯示錯誤。
+                    siteChangeSuspected = siteChange,
+                    showsSiteChangeBanner = siteChange && _state.value.periods.isNotEmpty(),
+                    // 有快取就沿用；完全沒資料才顯示錯誤。
                     errorMessage = if (_state.value.periods.isEmpty()) {
                         "無法載入任務資料，請確認網路連線後重新整理"
                     } else {
@@ -388,6 +425,11 @@ public class TasksViewModel(
                 )
             }
         }
+    }
+
+    /** 使用者關掉頂端的改版橫幅。只關這一次——下次 parse 再失敗會重新出現。 */
+    public fun dismissSiteChangeBanner() {
+        _state.value = _state.value.copy(showsSiteChangeBanner = false)
     }
 
     private companion object {

@@ -41,6 +41,8 @@ import androidx.lifecycle.viewModelScope
 import com.megshao.exerciserewards.AppContainer
 import com.megshao.exerciserewards.core.models.RedeemOption
 import com.megshao.exerciserewards.core.models.RedeemResult
+import com.megshao.exerciserewards.core.services.SiteHandoff
+import com.megshao.exerciserewards.core.services.SiteHandoffDestination
 import com.megshao.exerciserewards.telemetry.AnalyticsEvent
 import com.megshao.exerciserewards.telemetry.Endpoint
 import com.megshao.exerciserewards.telemetry.FailReason
@@ -55,6 +57,7 @@ import com.megshao.exerciserewards.ui.components.AppCard
 import com.megshao.exerciserewards.ui.components.InfoBanner
 import com.megshao.exerciserewards.ui.components.LoadingBlock
 import com.megshao.exerciserewards.ui.components.PrimaryButton
+import com.megshao.exerciserewards.ui.components.SiteHandoffMessage
 import com.megshao.exerciserewards.ui.components.StateMessage
 import com.megshao.exerciserewards.ui.components.VendorLogo
 import com.megshao.exerciserewards.ui.components.clickableRow
@@ -113,6 +116,13 @@ public fun RedeemScreen(
             result != null -> RedeemResultCard(result = result, onOpenVoucher = onOpenVoucher)
 
             state.isLoading && state.options.isEmpty() -> LoadingBlock()
+
+            // 兌換頁結構對不上（見 core 的 SiteHandoff.shouldHandoff）：說實話並交接到官網的
+            // 同一期兌換頁；taskId 的驗證與退回都在 core，這裡不拼網址。
+            state.siteChangeSuspected && state.options.isEmpty() -> SiteHandoffMessage(
+                destination = SiteHandoffDestination.Redeem(taskId),
+                onRetry = viewModel::load,
+            )
 
             state.errorMessage != null && state.options.isEmpty() -> StateMessage(
                 icon = Icons.Filled.Warning,
@@ -265,6 +275,8 @@ public class RedeemViewModel(
         val isLoading: Boolean = false,
         val isSubmitting: Boolean = false,
         val errorMessage: String? = null,
+        /** 最近一次載入失敗是不是「官網結構對不上」（core 的 `SiteHandoff.shouldHandoff`）。 */
+        val siteChangeSuspected: Boolean = false,
         val result: RedeemResult? = null,
         val pendingOption: RedeemOption? = null,
     )
@@ -277,7 +289,7 @@ public class RedeemViewModel(
             _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             try {
                 val loaded = container.environment.value.redeem.options(taskId)
-                _state.value = _state.value.copy(options = loaded, isLoading = false)
+                _state.value = _state.value.copy(options = loaded, isLoading = false, siteChangeSuspected = false)
                 // `option_count` 是官網目錄大小（全體使用者一樣），不是個人資料。
                 Telemetry.logEvent(
                     context,
@@ -293,6 +305,8 @@ public class RedeemViewModel(
                 Telemetry.logEvent(context, AnalyticsEvent.redeemOptions(ListOutcome.ERROR, reason, 0))
                 _state.value = _state.value.copy(
                     isLoading = false,
+                    // 官網結構對不上時畫面走交接畫面，這句「請確認網路連線」不會被顯示出來。
+                    siteChangeSuspected = SiteHandoff.shouldHandoff(error),
                     errorMessage = "無法載入兌換清單，請確認網路連線後重新整理",
                 )
             }
