@@ -1,0 +1,47 @@
+# 把 site/ 發佈成 GitHub Pages。
+#
+# 為什麼用 Actions 而不是「從分支的 /docs 目錄發佈」：`docs/` 在這個 repo 裡放的是
+# 開發文件（上架清單、驗證步驟），不是要公開的網站；把兩者混在同一個目錄，遲早會
+# 把內部筆記發佈出去。`site/` 只放對外頁面，界線清楚。
+#
+# **目前從 develop 發佈。** 這個 repo 的開發都在 develop 上，main 停在初始 commit；
+# 等 main 開始跟著版本走，把下面的 branches 改成 main 即可（隱私權政策理應對應
+# 已發佈的版本）。
+name: Pages
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時只跑一個部署；新的 push 進來時不取消進行中的那個，避免把站台留在半完成狀態。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # enablement: true 讓第一次執行時順便把 repo 的 Pages 打開，
+      # 不必先到 Settings 手動設定（需要上面的 pages: write 權限）。
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

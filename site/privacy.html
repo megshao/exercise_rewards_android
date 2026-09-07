@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隱私權政策 — Exercise Rewards（Android）</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <div class="brand"><strong>Exercise Rewards</strong> <span>非官方輔助工具・Android</span></div>
+    <nav class="site">
+      <a href="index.html">首頁</a>
+      <a href="privacy.html">隱私權政策</a>
+      <a href="support.html">支援</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<h1>隱私權政策</h1>
+<p class="updated">最後更新：2026 年 9 月 7 日｜適用版本：Exercise Rewards 1.0.0（Android，套件名稱 <code>com.megshao.exercise_rewards</code>）</p>
+
+<div class="notice">
+  <strong>先講最重要的兩句</strong>
+  開發者沒有任何自建伺服器。你的身分證號、出生日期、手機號碼只存在你自己的手機裡，或在你按下登入時由你的手機直接送到活動官方網站。本 App 不讀取任何健康資料。<br>
+  另外要老實說：這個版本內建了 Google Firebase 的匿名使用統計與當機回報，而且<strong style="display:inline">同意之後預設是開的</strong>。第一次打開 App 會先看到一頁簡介，按「開始使用」後緊接著就擋一張免責聲明，上面就寫著這件事；你按下「同意並開始使用」它才會啟動，之後隨時可以到「我的資料 › 安全與隱私」關掉。送出的東西裡沒有任何個資。詳見第 5 節。
+</div>
+
+<h2>0. 這是什麼 App</h2>
+<p>
+  Exercise Rewards 是由獨立開發者製作的<strong>非官方</strong>個人輔助工具，用來更省事地參加「揮汗有禮・全民動起來」運動幣加碼活動。
+  本 App 與運動部及任何政府機關<strong>沒有隸屬、合作、贊助或授權關係</strong>，也不代表活動主辦單位。活動規則與最終權益一律以官方公告為準。
+</p>
+<p>
+  本 App 另有一個 <a href="https://github.com/megshao/exercise_rewards_ios" target="_blank" rel="noopener">iOS 版本</a>。
+  兩邊是同一份設計的兩次實作，隱私承諾一致；但平台機制不同的地方，本頁寫的是<strong>Android 的實際做法</strong>，不是把 iOS 那份翻譯過來。凡是 Android 做得比較好、或做不到 iOS 那樣的地方，下面都會直說。
+</p>
+
+<h2>1. 開發者不營運任何伺服器（但有一個第三方套件）</h2>
+<ul>
+  <li>本 App <strong>沒有自建後端服務</strong>。你的身分證號、出生日期與手機號碼，開發者不接收、不儲存，也無法存取。</li>
+  <li>本 App 使用<strong>一個</strong>第三方服務：Google 的 Firebase（Analytics 與 Crashlytics），用來收集匿名的使用統計與當機回報。
+      你在首次啟動的免責聲明上按下同意之後，它<strong>預設是開啟的</strong>（那張聲明會明白寫出這件事），你可以隨時在 App 裡關掉；運作時開發者能看到的也只有匿名的操作事件與當機報告，看不到你是誰。完整說明見<a href="#usage">第 5 節</a>。</li>
+  <li>不投放廣告、<strong>不讀取 Google 廣告識別碼</strong>、不做跨 App 或跨網站的追蹤、不與資料掮客往來。
+      Firebase Analytics 預設會替 App 加上 <code>com.google.android.gms.permission.AD_ID</code> 這條權限，本 App 在程式清單裡把它<strong>整條移除</strong>（連 Privacy Sandbox 的兩條 AdServices 權限也一併移除）。這一點你可以自己查核，方法見<a href="#verify">第 8 節第 1 層</a>。</li>
+  <li>加密不依賴任何第三方函式庫，只用 Android 平台自己的 Keystore 與 <code>javax.crypto</code>。</li>
+</ul>
+
+<h2>2. 存在你手機裡的資料</h2>
+<p>為了讓你不用每次重打，以下三個欄位會加密保存在你的手機上：</p>
+<ul>
+  <li>身分證號</li>
+  <li>出生日期</li>
+  <li>手機號碼</li>
+</ul>
+<p>保存方式：</p>
+<ul>
+  <li>以 <strong>AES-256-GCM</strong> 加密。金鑰產生在 <strong>Android Keystore</strong> 裡、<strong>永遠不會離開</strong>——App 的程式碼只能請 Keystore 幫忙加解密，讀不到金鑰本身。手機若有 StrongBox（獨立安全晶片），金鑰就存在那顆晶片裡。</li>
+  <li>金鑰標記為 <code>setRandomizedEncryptionRequired(true)</code>：每次加密都強制使用隨機 IV，避免同一份個資產生一樣的密文。</li>
+  <li><strong>不進雲端備份、不隨換機轉移。</strong><code>android:allowBackup="false"</code>，另外 <code>data_extraction_rules.xml</code> 把雲端備份與「裝置對裝置轉移」兩條路徑都設成全部排除。換機或重裝要重新輸入，這是刻意的設計。</li>
+  <li><strong>你的登入 session（cookie）比照個資同級加密。</strong>cookie 在這裡等同帳號憑證，不會因為它「只是 cookie」而降級成明文存放。</li>
+  <li>絕不寫入明文的 <code>SharedPreferences</code>、設定檔或任何檔案，也不會出現在任何紀錄檔（logcat）中。</li>
+</ul>
+<p>
+  一個 Android 特有的說明：Google 官方的 <code>androidx.security:security-crypto</code>（<code>EncryptedSharedPreferences</code>）已被標記為 deprecated，本 App <strong>刻意不用它</strong>，改用平台 API 自己實作一個幾十行、可以讀完的
+  <code>KeystoreCrypto</code>。一支主打資料安全的 App，不該把加密押在已經停止維護的相依上。
+</p>
+
+<h2>3. 會離開你手機的資料</h2>
+<p>
+  你的個資只有在你<strong>主動操作</strong>時，才會由你的手機<strong>直接</strong>傳送到活動官方網站
+  <a href="https://500.gov.tw/" target="_blank" rel="noopener">500.gov.tw</a>（活動主辦單位營運、也就是你帳號所在的網站）。中間不經過開發者或任何其他服務。
+</p>
+<p>
+  另外，在你同意免責聲明之後，只要沒有把「傳送匿名使用統計」關掉，就會有一類不含個資的資料送到 Google Firebase。下表把兩者一起列出來，看得到全部的出口：
+</p>
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>什麼資料</th><th>什麼時候送出</th><th>送到哪裡</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>身分證號、出生日期、手機號碼</td><td>你按下登入時</td><td>500.gov.tw</td></tr>
+    <tr><td>你自己從相簿挑選的運動紀錄截圖</td><td>你按下上傳時</td><td>500.gov.tw</td></tr>
+    <tr><td>兌換選擇（商家、品項）與簡訊驗證碼</td><td>你操作兌換時</td><td>500.gov.tw</td></tr>
+    <tr><td>匿名使用事件與當機報告（<strong>不含個資</strong>，詳見第 5 節）</td><td><strong>你同意免責聲明之後</strong>（除非你把「傳送匿名使用統計」關掉）</td><td>Google Firebase（Google LLC，伺服器在美國）</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="notice">
+  <strong>你上傳的截圖，送出去的不是相簿裡那個原檔</strong>
+  相簿原檔的 EXIF 資訊常含 <strong style="display:inline">GPS 座標</strong>——那是「你在哪裡運動」的精確位置。
+  你按「確認上傳」的時候，完全不會預期它被一起送出去。<br>
+  所以本 App 在上傳前<strong style="display:inline">一律把圖片重新編碼</strong>，EXIF 與 GPS 一併去掉，官方網站收到的是一張沒有位置資訊的圖。
+  而且這一步<strong style="display:inline">沒有備援路徑</strong>：重新編碼失敗就直接顯示錯誤，<strong style="display:inline">絕不退回送出原檔</strong>。
+  留一條「失敗就送原檔」的旁路會讓這個保證在最需要的時候失效，所以那條路根本沒有寫。<br>
+  這件事你可以自己驗：把上傳送出的內容存下來，用 <code>exiftool</code> 檢查，裡面不該有任何 GPS 欄位。
+  程式碼在 <code>app/src/main/kotlin/com/megshao/exerciserewards/data/ImageReencoder.kt</code>。<br>
+  也因此第 5 節那張表裡的「粗略地區」只可能來自 Google 在<strong style="display:inline">伺服器端</strong>由連線 IP 推導出的國家層級位置——
+  本 App 沒有申請任何定位權限，也拿不到、更不會送出精確位置。
+</div>
+<p>
+  這些資料送達之後如何被處理，適用 <a href="https://500.gov.tw/" target="_blank" rel="noopener">500.gov.tw</a> 自身的隱私政策與活動辦法，不在本 App 的控制範圍內。
+</p>
+<p>
+  技術上，本 App 自己發出的請求只允許連到 <code>500.gov.tw</code>（含其子網域）；連往其他網域的請求會被程式主動阻擋，並且強制使用 HTTPS 加密傳輸（<code>network_security_config.xml</code> 明文流量一律禁止）。
+  這裡有兩個例外，都講清楚：
+</p>
+<ul>
+  <li>當你檢視自己先前上傳的截圖時，官方網站會回一個 302 導向到自帶簽章的圖片網址，App 會先檢查那個網址（必須是 <code>https</code>，而且網域必須是 <code>500.gov.tw</code> 或官方網站的圖片儲存網域，目前實測是結尾為 <code>amazonaws.com</code> 的網址），再用一條<strong>專用的連線</strong>把圖片抓下來顯示。那條連線<strong>沒有 cookie 罐子</strong>（<code>CookieJar.NO_COOKIES</code>）、<strong>沒有磁碟快取</strong>，圖片不落盤。<br>（講精確一點：讓你的登入 cookie 不會流到別的網域的，是 cookie 本身的網域範圍 <code>500.gov.tw</code>；而上面那條專用連線是額外再加一層——它連 cookie 罐子都沒有，所以就算官方網站把你導回它自己的網域，也不會夾帶你的登入狀態。也因此本 App <strong>不使用 Coil／Glide</strong> 這類圖片函式庫：它們預設共用連線與磁碟快取，兩件事都跟上面的承諾相反。）</li>
+  <li><strong>Firebase 走的是它自己的連線，不受上面那個網域阻擋機制管轄</strong>（那個機制只管 App 自己寫的網路程式碼）。使用統計運作時，它會連往 Google 的網域。我們從 SDK 的二進位裡實際查出來的有
+      <code>app-measurement.com</code>（Analytics 事件上傳）、<code>firebaseinstallations.googleapis.com</code>（要一組安裝編號）、<code>firebase-settings.crashlytics.com</code>（Crashlytics 取設定）。<br>
+      <strong>當機報告本身是由 Google 的 <code>datatransport</code> 元件上傳的，端點寫在閉源的設定裡，我們讀不出來</strong>，所以不在這裡假裝列得完整。這正好說明為什麼<a href="#verify">第 8 節第 1 層</a>那個方法比我們的宣稱可靠——它是你自己的手機記下來的，不是我們寫的。這些連線一樣強制 HTTPS。你按下同意之前不會發生；把開關關掉並完全重開 App 之後也不會發生。<br>
+      （另外提醒：<code>app-measurement.com</code> 是 Android 版 Analytics 的上傳網域，跟 iOS 版用的 <code>app-analytics-services.com</code> 不同。同一個 Firebase 專案，兩個平台連的網域不一樣，這是 SDK 的差別，不是設定的差別。）</li>
+</ul>
+
+<h2 id="permissions">4. 健康資料與 App 權限</h2>
+<ul>
+  <li><strong>本 App 完全不讀取健康資料。</strong>不接 <strong>Health Connect</strong>、不接 Google Fit、不宣告任何身體活動（<code>ACTIVITY_RECOGNITION</code>）、位置或相機權限，因此也不會出現任何相關的系統詢問。</li>
+  <li>App 裡沒有任何讀取、寫入或推算健康數據的功能；要上傳的運動紀錄一律由你自己從相簿挑選截圖（透過系統的照片選擇器，App 不需要、也沒有宣告讀取相簿的權限）。</li>
+  <li>因此第 5 節的使用統計裡，也不可能出現任何健康相關的數值或結論。</li>
+  <li><strong>跟 iOS 版的差別：</strong>iOS 的 1.0.0 版曾經唯讀取得步數等資料（後續版本已整個移除）。<strong>Android 版從第一個版本起就從來沒有讀過健康資料</strong>，沒有這段歷史需要交代。</li>
+</ul>
+<p>
+  <strong>你在系統設定裡會看到的權限，我們一條一條交代。</strong>本 App 自己只宣告一條 <code>android.permission.INTERNET</code>；
+  但 Android 會把相依函式庫宣告的權限一起合併進安裝檔，所以實際安裝的版本裡有下面這些。這份清單你可以自己查（見<a href="#verify">第 8 節第 1 層</a>），我們把它寫在這裡是為了讓你對得起來：
+</p>
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>權限</th><th>誰要的</th><th>做什麼</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>INTERNET</code></td><td>本 App</td><td>連官方網站。這是 App 唯一自己宣告的權限。</td></tr>
+    <tr><td><code>ACCESS_NETWORK_STATE</code></td><td>Firebase</td><td>判斷有沒有網路，決定要不要現在上傳。</td></tr>
+    <tr><td><code>WAKE_LOCK</code></td><td>Firebase Analytics</td><td>上傳統計時避免中途進入休眠。</td></tr>
+    <tr><td><code>com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE</code></td><td>Firebase Analytics</td><td>向 Play 商店詢問「這次安裝是從哪來的」。本 App 沒有任何廣告或推廣活動，所以這裡拿不到有意義的來源。</td></tr>
+    <tr><td><code>…DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION</code></td><td>AndroidX</td><td>由建置工具自動加入，用來確保 App 內部的廣播不會被別的 App 收到。這是一條保護措施，不取得任何資料。</td></tr>
+  </tbody>
+</table>
+</div>
+<p>
+  以上都<strong>不是</strong>需要你按下同意的「執行時期權限」——Android 不會為它們跳出詢問，因為它們不涉及個人資料。
+  真正涉及個資的權限（位置、相機、相簿、身體活動、通知）本 App <strong>一條都沒有</strong>。
+</p>
+<div class="notice">
+  <strong>特別交代：廣告識別碼</strong>
+  Firebase Analytics 預設會宣告 <code>com.google.android.gms.permission.AD_ID</code>，讓 SDK 讀取你的 Google 廣告識別碼；另外還會宣告兩條 Privacy Sandbox 的 <code>ACCESS_ADSERVICES_*</code> 權限。
+  <strong style="display:inline">本 App 把這三條全部移除</strong>，所以 SDK 拿不到你的廣告識別碼。<br>
+  誠實補一句：移除的是「權限」，不是「程式碼」——Analytics SDK 裡讀廣告識別碼的那個元件（<code>play-services-ads-identifier</code>）還是會被包進安裝檔，這是 Google 的 SDK 結構，我們沒辦法只拆掉那一塊。但沒有權限它就讀不到，而<strong style="display:inline">「有沒有這條權限」是你可以自己查、而且我們無法造假的事實</strong>——比「相信我們沒有呼叫它」硬得多。查法見第 8 節第 1 層。
+</div>
+
+<h2 id="usage">5. 使用統計與當機回報（同意後預設開啟）</h2>
+<div class="notice">
+  <strong>先告知、你主動同意，然後預設是開的</strong>
+  第一次打開 App，你會先看到一張擋在最前面的免責聲明，上面明白寫著「App 會把匿名的操作紀錄與當機報告送給 Google Firebase」，勾選的那句話也涵蓋「同意傳送不含個資的匿名使用統計（可隨時關閉）」。你按下「同意並開始使用」，它才會啟動——<strong style="display:inline">在你按下同意之前，Firebase 的程式碼一行都不會執行</strong>。<br>
+  同意之後，這項功能<strong style="display:inline">預設是開的</strong>。講白一點：對你來說它就是「預設會送」，只是送之前一定先讓你看到說明、由你自己按下同意。不想送就到「我的資料 › 安全與隱私 › 傳送匿名使用統計」關掉，隨時都可以。<br>
+  「同意之前零連線」這句話你可以自己驗證，而且 Android 上驗起來比 iOS 容易：見<a href="#verify">第 8 節</a>。
+</div>
+<p>
+  <strong>為什麼把啟動時機綁在免責聲明上？</strong>因為 Firebase 只要一初始化，就會立刻向 Google 要一組安裝編號、送出一筆「首次開啟」——而且就算收集旗標是關的，要安裝編號那一步還是會連線。
+  如果 App 一啟動就初始化，你在讀到任何說明之前，資料就已經送出去了。所以我們把初始化整個推到免責聲明後面：你先看到會送什麼、送給誰，按下同意，它才開始。
+</p>
+<div class="notice">
+  <strong>Android 特有的一個坑，講出來給你檢查</strong>
+  Firebase 的 <code>firebase-common</code> 會自己往程式清單裡塞一個 <code>FirebaseInitProvider</code>。<code>ContentProvider</code> 的
+  <code>onCreate</code> <strong style="display:inline">早於 App 自己的程式碼</strong>執行——也就是說，只要設定檔在，Firebase 會在你看到免責聲明之前、在 App 畫面出現之前就被初始化。
+  這會讓上面那句「同意之前零連線」在 Android 上直接變成假話。<br>
+  本 App 在 <code>AndroidManifest.xml</code> 用 <code>tools:node="remove"</code> 把那個 provider <strong style="display:inline">整個移掉</strong>，改由同意流程明確初始化，另外再加兩個 <code>false</code> 旗標當縱深防禦。
+  這個坑 iOS 沒有（那邊本來就得手動呼叫初始化），所以這一段是 Android 版額外做的功。你可以在原始碼的 manifest 裡看到那三行，也可以用第 8 節第 1 層的方法實測。
+</div>
+<p>
+  所以本 App 不是「有初始化 Firebase，但把收集關著」，而是<strong>在你按下同意之前，Firebase 的程式碼一行都不會執行</strong>。
+  「零連線」因此不是靠相信 Google 的 SDK 會尊重旗標，而是它根本沒被啟動。
+</p>
+<p>
+  <strong>那為什麼同意之後直接是開的，而不是還要你自己再去設定頁打開一次？</strong>誠實的答案：當機報告要有足夠的樣本才修得到 bug，而「預設關、藏在設定頁第三層」實際上等於沒有人會打開。
+  我們選擇把話講在最前面、講清楚，再由你決定要不要按下同意——而不是用一個沒人看得到的開關來換取「技術上是 opt-in」這個說法。
+  也不要誤會我們的用詞：這<strong>不是</strong> opt-in。它是<strong>先告知、你主動同意，之後預設開啟、隨時可關</strong>。
+</p>
+
+<h3>送出去的是什麼、送給誰</h3>
+<p>
+  收件者是 <strong>Google LLC</strong>（Firebase Analytics 與 Firebase Crashlytics），資料存放於 Google 位在美國的伺服器，適用
+  <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase 的隱私與安全性條款</a>。開發者透過 Firebase 主控台檢視彙總結果。
+</p>
+<div class="scroll">
+<table>
+  <thead>
+    <tr><th>類別</th><th>具體內容</th><th>用途</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>匿名操作事件</td>
+      <td>「看了哪一個畫面」（畫面名稱是程式裡寫死的固定清單，例如 <code>home</code>、<code>tasks</code>、<code>wallet</code>）、登入成功或失敗（失敗只送分類，例如「三碼不符」「網路錯誤」）、任務清單有沒有抓到、上傳／兌換／簡訊驗證各步驟成功或失敗、官方網站疑似改版的訊號、你<strong>打開</strong>這個統計開關的那一刻（關掉時什麼都不送）、以及 Firebase 自動記錄的基本事件（首次開啟、一次使用階段的開始與結束、每段停留時間、App 版本更新、Android 系統更新，以及 Firebase 自己也會記一份的畫面瀏覽——與上面手動送的那一筆並存）。每一筆都只帶固定清單裡的分類值與小範圍整數（例如第幾週、耗時毫秒）。</td>
+      <td>知道哪些畫面有人用、哪一步大家卡住</td>
+    </tr>
+    <tr>
+      <td>使用者屬性</td>
+      <td><strong>沒有。</strong>本 App 不設定任何會黏在每一筆事件上的屬性，也不設定使用者編號。理由：幾個是／否的組合就足以把人分成很小的群，跟「匿名」的方向相反。</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>當機與錯誤報告</td>
+      <td>當機的程式堆疊、手機型號、Android 版本、App 版本、記憶體與空間餘量、當機時間、當機前停在哪一個畫面、當時是不是示範模式；以及非致命錯誤的分類代碼（例如「任務頁解析失敗」）與 HTTP 狀態碼。<strong>不送任何錯誤訊息原文</strong>——程式裡根本沒有把錯誤訊息交給當機回報的路，只送寫死的分類代碼。</td>
+      <td>修 bug</td>
+    </tr>
+    <tr>
+      <td>一組隨機編號</td>
+      <td>Firebase 產生的安裝編號（app instance ID／installation ID）。它是隨機的、可重置的，<strong>不是</strong>你的 Google 廣告識別碼——讀取廣告識別碼所需的權限已從安裝檔中移除（見第 4 節）——也沒有跟你的身分證號或任何帳號串接。你把統計開關關掉時，這組編號會被重置。</td>
+      <td>把同一支手機的事件歸在一起</td>
+    </tr>
+    <tr>
+      <td>粗略地區</td>
+      <td>Google 由連線 IP 推導出的國家層級位置。App 本身不使用定位，也沒有申請任何定位權限。</td>
+      <td>Google 端的基本統計</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>絕對不會送出的東西（就算開關打開也一樣）</h3>
+<ul>
+  <li><strong>身分證號、出生日期、手機號碼</strong>——任何形式都不行，包含雜湊、只取前幾碼、或跟別的字串拼在一起。</li>
+  <li><strong>任何健康數據</strong>，以及任何從健康數據推算出來的結論（含「今天是否達標」）。本 App 根本讀不到健康資料。</li>
+  <li>你上傳的截圖、或關於那張圖的任何資訊。</li>
+  <li>加碼券的券碼、條碼內容、兌換序號。</li>
+  <li>你在官方網站的登入憑證、cookie、驗證碼。</li>
+  <li>你自己輸入的任何文字，以及官方網站回傳的原始錯誤訊息。</li>
+</ul>
+<p>
+  這不是靠「我們記得不要送」來保證的。程式裡送得出去的事件名稱、參數與屬性都寫成<strong>固定的封閉清單</strong>：
+  參數的值只有三種型別——封閉列舉轉出的短碼、<strong>登記過值域</strong>的整數、布林。<strong>沒有「任意字串」這個選項</strong>，
+  所以期別編號、券碼、官網原文在型別上就構造不出來，編譯階段就過不去。送出前還要再過六道閘門：
+  示範模式 → 截圖模式 → 使用者關閉 → 未初始化 → 內容像不像個資 → 整數有沒有超出登記的範圍。
+  這段程式碼只有一個檔案（<code>app/src/main/kotlin/com/megshao/exerciserewards/telemetry/Telemetry.kt</code>），是公開的，
+  全 App 其他檔案禁止 <code>import</code> Firebase，你可以自己去看。
+</p>
+
+<h3>怎麼關掉</h3>
+<ul>
+  <li>「我的資料 › 安全與隱私 › 傳送匿名使用統計」，把開關關掉即可：收集立刻停止、安裝編號重置、<strong>已經收集但還沒上傳的事件與當機報告直接刪掉</strong>（不是「從現在起不再收集、但之前收的照送」）。</li>
+  <li>老實說一件事：Firebase 沒有「反初始化」這種功能。關掉之後，這一次執行期間它的程式碼還留在記憶體裡（只是不再收集）；要回到「一行 Firebase 程式碼都不跑」的狀態，得等你下一次完全關閉再打開 App。所以如果你想用第 8 節的方法驗證「關著時零連線」，請先把 App 完全關掉重開（從最近使用的 App 清單滑掉，或到「設定 › 應用程式 › Exercise Rewards › 強制停止」）。</li>
+  <li>按「立即清除本機資料」時，同意紀錄與這個開關都會回到剛裝好的狀態：下次啟動你會再看到一次免責聲明，在你重新按下同意之前，Firebase 一行程式碼都不會跑。</li>
+  <li>進入示範模式時，不論開關是開是關，一律不送任何東西。</li>
+  <li>沒有廣告用途、沒有跨 App 追蹤。Android 沒有 iOS 那種「要求追蹤」的系統詢問；對應的做法是我們把廣告識別碼權限整條移除（見第 4 節）。</li>
+</ul>
+
+<h2>6. 兒童</h2>
+<p>本 App 不針對兒童設計，也不會刻意蒐集兒童資料。活動參加資格以官方公告為準。</p>
+
+<h2>7. 怎麼刪除你的資料</h2>
+<ul>
+  <li><strong>App 內：</strong>「我的資料」→「立即清除本機資料」，會永久刪除本機保存的全部欄位、登入 cookie 與快取。</li>
+  <li><strong>解除安裝 App：</strong>移除 App 時，App 的私有儲存空間與 Keystore 中屬於本 App 的金鑰一併移除——金鑰一沒，剩下的密文任何人都解不開。因為本 App 停用了備份與裝置轉移，雲端不會留下副本。</li>
+  <li><strong>官方網站上的帳號：</strong>本 App 無法代為刪除。請至 <a href="https://500.gov.tw/" target="_blank" rel="noopener">500.gov.tw</a> 自行管理。</li>
+  <li><strong>已經送到 Google 的使用統計：</strong>那裡沒有你的身分資料，所以無法用「你是誰」去查詢或刪除特定筆數。你能做的是把開關關掉停止繼續送出（同時會重置安裝編號、刪掉還沒上傳的部分）；已送出的資料由 Google 依 Firebase 的保存政策自動過期。</li>
+</ul>
+
+<h2 id="verify">8. 你可以驗證到什麼程度</h2>
+<p>
+  「相信我們」不夠。但「程式碼開源」也不等於「你手機上那個版本就是這份程式碼」——這兩件事中間有一段落差，多數開源 App 不會講。
+  下面照難度分四層，每一層都寫清楚你能確認什麼、確認不了什麼。最後一層是我們幫不上忙、你只能自己決定信不信的部分。
+</p>
+<p>
+  先講一個 Android 的好消息：<strong>這一節的每一層，Android 都比 iOS 驗得更深。</strong>
+  iOS 的商店版程式碼是加密的、看不到內部；Android 的安裝檔沒有加密，可以反編譯。抓包也不必把整支手機的流量導到電腦——裝一支 App 就能逐 App 看連線。
+  代價是 Android 沒有 iOS「App 隱私權報告」那種系統內建的現成清單，第 1 層要多裝一個工具。
+</p>
+
+<h3>第 1 層：不用懂程式——查權限清單，再看它連過哪裡</h3>
+<p><strong>(a) 權限清單（完全不用裝東西）</strong></p>
+<p>
+  <strong>設定 › 應用程式 › Exercise Rewards › 權限</strong>。你會看到「未授予任何權限」之類的說明——因為本 App 沒有申請任何需要你同意的權限。
+  想看完整清單（包含不需你同意的那些），在同一頁往下找「查看全部權限」／「所有權限」。對得起來的內容就是<a href="#permissions">第 4 節</a>那張表。
+</p>
+<div class="notice">
+  <strong>這是一個可以被打臉的承諾</strong>
+  如果你在這份清單裡看到<strong style="display:inline">「廣告識別碼」（<code>AD_ID</code>）</strong>，或是任何位置、相機、相簿、身體活動的權限，那就是我們違反了本頁第 4 節的承諾。
+  請截圖寄到第 10 節的信箱，或到 GitHub 開 issue。這一條我們造不了假——權限清單是系統從安裝檔讀出來的。
+</div>
+<p><strong>(b) 它連過哪些網域（裝一支 App，不需 root）</strong></p>
+<p>
+  Android 允許 App 透過系統的 VPN 介面觀察其他 App 的連線。裝一支這類工具（例如 <strong>PCAPdroid</strong> 或 <strong>NetGuard</strong>，都是開源的），
+  在裡面只勾選 Exercise Rewards，就能<strong>逐一列出本 App 連過的每個網域與時間</strong>。這相當於 iOS 的「App 隱私權報告」，而且更好用：即時、可匯出、不限 7 天，也不需要把手機接上電腦。
+</p>
+<p>在你<strong>還沒按下免責聲明的「同意並開始使用」</strong>之前——或是同意之後把「傳送匿名使用統計」關掉、再<strong>完全關閉 App 重開</strong>——本 App 底下只應該出現兩類網域：</p>
+<ul>
+  <li><code>500.gov.tw</code>（含子網域）——登入、任務、上傳、兌換全部走這裡。</li>
+  <li>官方網站存放你截圖的圖片網域——只在你點開「查看已上傳的截圖」時出現。那個網域是由<strong>官方網站</strong>決定的（目前實測是結尾為 <code>amazonaws.com</code> 的網址，官方網站若換供應商就會變成別的），App 只是把官方回傳的圖片網址顯示出來（見第 3 節）。</li>
+</ul>
+<div class="notice">
+  <strong>這也是一個可以被打臉的承諾</strong>
+  <strong style="display:inline">在你按下免責聲明的「同意並開始使用」之前</strong>，如果你在本 App 底下看到任何 Google 網域（<code>app-measurement.com</code>、<code>googleapis.com</code>、<code>crashlytics.com</code>、<code>google-analytics.com</code>……），
+  那就是我們違反了本頁的承諾。請截圖寄到第 10 節的信箱，或到 GitHub 開 issue。我們會把它當成最高優先的 bug 處理，而且會公開。<br>
+  反過來說：<strong style="display:inline">同意之後出現 Google 網域是預期中的</strong>，那就是第 5 節講的統計在運作，不是違約。把開關關掉、完全關閉 App 再重開，它們就該消失——如果沒有消失，一樣歡迎打臉。
+</div>
+<p>這一層的限制，先講清楚：</p>
+<ul>
+  <li>它只看得到「連去哪」，看不到「送了什麼」。要看內容，得走第 2 層。</li>
+  <li>抓包工具本身要走系統 VPN 介面，所以你用它的時候不能同時接別的 VPN。</li>
+  <li>送到 <code>500.gov.tw</code> 的登入請求<strong>本來就含你的身分證號</strong>——那是登入必需的。所以這份紀錄無法區分「正當登入」與「往同一個網域多送了別的東西」。同樣要走第 2 層。</li>
+  <li>剛關掉統計開關的那一次執行，Firebase 還留在記憶體裡（見第 5 節「怎麼關掉」）。要驗證「關著時零連線」，請先強制停止 App 再重開。</li>
+</ul>
+
+<h3>第 2 層：懂一點技術——看每一筆請求的內容</h3>
+<p>
+  用 mitmproxy、Charles，或第 1 層那支 PCAPdroid 的解密功能，就能看到本 App 每一筆請求的完整內容：網址、標頭、表單欄位、上傳的檔案。
+  你會親眼看到登入時送出去的欄位就是那三個、上傳時送出去的就是你選的那張圖、往圖片網域的請求不帶登入 cookie。
+</p>
+<p>
+  本 App <strong>刻意不做 certificate pinning</strong>——就是為了讓你裝了自己的憑證之後看得到內容。
+  pinning 常被當成安全功能，但對一支主打「你可以自己查」的 App 來說，它擋掉的其實是你。
+</p>
+<div class="notice">
+  <strong>Android 這裡有一道限制，我們沒辦法幫你繞過，但可以告訴你怎麼走</strong>
+  Android 7 之後，App 預設<strong style="display:inline">不信任你自己安裝的憑證</strong>。所以從 Play 商店裝到的正式版，mitmproxy 攔不到內容——這是平台的安全預設，不是我們加的限制，而且我們不打算為了方便查核就對所有使用者關掉它。<br>
+  要看內容，請自己從原始碼建置一個 debug 版：<code>./gradlew :app:installDebug</code>。debug 版在
+  <code>network_security_config.xml</code> 的 <code>&lt;debug-overrides&gt;</code> 裡<strong style="display:inline">明確允許</strong>信任你安裝的憑證（那一段只對 debuggable 的版本生效，正式版不會套用）。那一行就是為了讓這件事做得到才寫的。<br>
+  補一句更重要的：<strong style="display:inline">debug 版完全不接 Firebase</strong>（建置設定裡直接停用 Firebase 的設定檔處理），所以你在 debug 版上看到的流量就是純粹的 <code>500.gov.tw</code>——這剛好讓你把「App 自己的行為」單獨看清楚。<br>
+  想連 Firebase 送出去的內容也一起看？可以，而且是最徹底的做法：<strong style="display:inline">用你自己的 Firebase 專案</strong>——去 Firebase Console 開一個你自己的專案、下載你自己的 <code>google-services.json</code>、把建置設定裡停用 debug 版 Firebase 的那一行拿掉，然後建置。這樣所有統計都會送到<strong style="display:inline">你自己的主控台</strong>，你可以逐筆看到我們到底送了什麼欄位。這比讀我們的說明可靠。
+</div>
+<p>
+  步驟、每個操作預期會看到的請求、以及怎麼判斷有沒有異常，寫在
+  <a href="https://github.com/megshao/exercise_rewards_android/blob/develop/docs/verify-network.md" target="_blank" rel="noopener">docs/verify-network.md</a>。
+</p>
+
+<h3>第 3 層：工程師——讀程式碼、自己建置、反編譯商店版</h3>
+<ul>
+  <li>原始碼全部公開（MIT 授權）：<a href="https://github.com/megshao/exercise_rewards_android" target="_blank" rel="noopener">github.com/megshao/exercise_rewards_android</a>。</li>
+  <li>唯一會碰 Firebase 的檔案是 <code>app/src/main/kotlin/com/megshao/exerciserewards/telemetry/Telemetry.kt</code>；
+      網域白名單在 <code>core/src/main/kotlin/com/megshao/exerciserewards/core/networking/OkHttpHttpClient.kt</code>（<code>isAllowedHost</code>）；
+      加密在 <code>app/src/main/kotlin/com/megshao/exerciserewards/data/KeystoreCrypto.kt</code>。從這三個檔案開始讀，就能掌握全部的對外出口與資料落地方式。</li>
+  <li>領域邏輯全部放在 <code>core</code> 這個<strong>不依賴 Android SDK</strong> 的模組裡，所以你不用模擬器也能跑完它的單元測試：<code>./gradlew :core:test</code>（目前 240 條）。</li>
+  <li>相依版本鎖在 <code>gradle/libs.versions.toml</code>，建置需要 JDK 21。</li>
+  <li><strong>Android 特有的一層：反編譯商店版。</strong>Android 的安裝檔<strong>沒有</strong>類似 iOS FairPlay 的程式碼加密，所以你可以把裝到手機上的版本抽出來
+      （<code>adb shell pm path com.megshao.exercise_rewards</code> 再 <code>adb pull</code>），用 <code>apktool</code> 看它的程式清單、用 <code>jadx</code> 看它的程式碼。
+      這讓你能直接查核幾件我們在本頁宣稱的事，而不必相信我們：權限清單裡沒有 <code>AD_ID</code>、程式清單裡沒有 <code>FirebaseInitProvider</code>、
+      <code>network_security_config</code> 的正式版設定只信任系統憑證。</li>
+</ul>
+<p>
+  但請注意：這一層確認的是「<strong>這份原始碼</strong>會做什麼」與「<strong>商店版的清單與設定</strong>長什麼樣」。
+  要一路確認到「商店版的每一行程式碼都等於這份原始碼」，還缺最後一塊——那是下一層。
+</p>
+
+<h3>第 4 層：你必須信任、我們無法幫你消除的兩件事</h3>
+<p>
+  <strong>Google Play。</strong>上架時我們交給 Google 的是 Android App Bundle，<strong>由 Google Play 重新簽章</strong>、並針對你的手機型號與語言產生對應的安裝檔（Play App Signing 與 App Bundle 的分割機制）。
+  再加上正式版會經過 R8 最佳化與名稱混淆，結果是：<strong>你手機上那個安裝檔的雜湊值，任何人——包括我們自己——都無法事先算出來</strong>。
+  所以你會看到有些專案「公布安裝檔的 SHA-256」——在 Play 的分發模式下那個值對不上任何東西，我們不做這種看起來專業但實際上空的事。<br>
+  能繞過這一層的方法是：自己從原始碼建置、裝到自己的手機上（第 3 層）。那樣裝的就不是商店版了，但你對它的每一行程式碼都有把握。
+  <strong>反編譯商店版（第 3 層最後一項）能把這道落差縮小很多</strong>——清單、設定、資源都看得到，程式碼雖然被混淆過但結構仍可讀——這是 Android 比 iOS 好的地方，但它終究不是逐位元的證明。
+</p>
+<p>
+  <strong>Google Firebase。</strong>Analytics 的核心元件（<code>play-services-measurement</code>）是<strong>閉源二進位</strong>，我們跟你一樣讀不到它內部在做什麼。我們能保證、也只能保證四件事：
+</p>
+<ul>
+  <li>(a) 你按下免責聲明的同意之前，它<strong>不會被啟動</strong>——不是「啟動了但關著」，是連初始化都沒執行，而且我們把會偷跑的 <code>FirebaseInitProvider</code> 從清單裡移掉了（第 5 節）。同意之後把開關關掉、完全重開 App，也回到同樣的狀態。</li>
+  <li>(b) 讀取廣告識別碼所需的權限已從安裝檔中移除，<strong>這一點你可以自己查核</strong>（第 1 層 (a)、第 3 層）。</li>
+  <li>(c) 它連去的網域你可以在第 1 層 (b) 看到。</li>
+  <li>(d) 它送出的內容你可以在第 2 層看到——而且可以把它導到<strong>你自己的 Firebase 專案</strong>逐筆檢查。</li>
+</ul>
+<p>
+  如果這兩件事你不願意信任：Play 那一段的替代方案是自己建置；Google 那一段的替代方案是——同意之後<strong>第一件事就去把「傳送匿名使用統計」關掉，然後強制停止 App 再重開</strong>，之後 Firebase 的程式碼一行都不會執行，第 1 層 (b) 可以替你確認這一點。
+  這裡也要誠實：你按下同意的那一刻它已經初始化過一次，那一次的安裝編號與「首次開啟」確實送出去了；關掉開關會把安裝編號重置掉、並刪除還沒上傳的部分。要連那一次都避開，唯一的辦法是不要按同意——但不按同意就進不了 App，這是我們把揭露擋在最前面的代價。
+</p>
+
+<h2>9. 政策變更</h2>
+<p>本政策如有修改，會更新本頁最上方的「最後更新」日期。重大變更會在 App 更新說明中一併告知。</p>
+
+<h2>10. 聯絡方式</h2>
+<p>對隱私有任何疑問，請來信：<a href="mailto:megshao0918@gmail.com">megshao0918@gmail.com</a></p>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    Exercise Rewards 為非官方個人工具，與運動部及任何政府機關無隸屬或授權關係。<br>
+    © 2026 megshao・以 MIT 授權開源
+  </div>
+</footer>
+
+</body>
+</html>
