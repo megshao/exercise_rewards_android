@@ -28,8 +28,14 @@
   不進雲端備份、不隨裝置轉移（`allowBackup=false` + `data_extraction_rules.xml` 全排除）。
   只在你按下登入時由裝置直送 `500.gov.tw`。姓名、Email、健保卡卡號一律不收。
 - **登入 session（cookie）比照個資加密**：cookie 在這裡等同帳號憑證，不因為它「只是 cookie」而降級。
-- **完全不讀健康資料**：不宣告任何健康、位置、相機權限（manifest 裡唯一的權限是 `INTERNET`）。
+- **完全不讀健康資料**：不接 Health Connect、不接 Google Fit，不宣告任何健康、位置、相機權限。
   上傳的運動紀錄一律由使用者自己從相簿挑選。
+- **不要廣告識別碼**：Firebase Analytics 預設會替 App 宣告 `com.google.android.gms.permission.AD_ID`
+  與兩條 Privacy Sandbox 的 `ACCESS_ADSERVICES_*`，manifest 用 `tools:node="remove"` 把三條全部移除。
+  留著的代價是很實際的：Play 的資料安全表單得勾「收集廣告識別碼」，而使用者在系統設定裡會看到
+  「廣告識別碼」——權限清單是使用者能自己查核的第一層證據，它必須跟隱私權頁面一致。
+  （本 App 自己只宣告 `INTERNET`；**合併後**還有 Firebase 帶進來的 `ACCESS_NETWORK_STATE`、
+  `WAKE_LOCK`、`BIND_GET_INSTALL_REFERRER_SERVICE`，逐條交代在 [`site/privacy.html`](site/privacy.html) 第 4 節。）
 - **遙測綁在免責聲明的同意之後**：首次啟動先擋一張免責聲明，上面明寫「會把匿名操作紀錄與
   當機報告送給 Google Firebase」，按下同意才呼叫 `FirebaseApp.initializeApp`。
   同意之後**預設是開的**，可隨時關掉。這不是 opt-in，是「先告知 → 主動同意 → 預設開啟 → 隨時可關」。
@@ -55,7 +61,13 @@ app/           Compose UI 與所有 Android 專屬實作
     components/  卡片／按鈕／徽章／任務進度時間軸／個資欄位／出生日期滾輪／OTP 格／條碼產生器
     screens/     12 個畫面：歡迎、免責聲明、個資填寫、首頁、任務、券夾、我的資料、
                  上傳、看截圖、兌換、廠商商品、加碼券
+site/          對外說明頁（首頁／隱私權政策／支援），由 GitHub Actions 發佈成 Pages
+docs/          開發與上架文件（`verify-network.md` 自行驗證網路行為、`play-store/` 上架資料）
 ```
+
+`site/` 與 `docs/` 分開不是潔癖：`docs/` 放的是內部筆記與上架草稿，如果跟對外網站共用一個
+目錄（GitHub Pages 那個「從 /docs 發佈」的選項），遲早會把內部東西發佈出去。
+`site/` 只放要公開的頁面，界線在目錄層級就切乾淨。
 
 畫面與流程與 iOS 端**一一對應**（`App/Sources/Views/`）：首次啟動走
 歡迎 → 免責聲明 → 個資填寫，主畫面是首頁／任務／券夾三個分頁，其餘畫面推在上面。
@@ -65,7 +77,7 @@ app/           Compose UI 與所有 Android 專屬實作
 
 - **`core` 不含任何 Android 相依。** 領域規則（「本週是哪一期」「這一期還能不能上傳」）
   是**規則不是排版**，寫在 Composable 裡的 `if` 沒有任何測試搆得到；搬進 `core` 之後
-  它們才有 233 個單元測試守著。
+  它們才有 240 個單元測試守著。
 - **加密不依賴 `androidx.security:security-crypto`。** Google 已經把那整包標記為
   deprecated；這個 App 的賣點就是資料安全，開場不押停止維護的加密相依。
   [`KeystoreCrypto`](app/src/main/kotlin/com/megshao/exerciserewards/data/KeystoreCrypto.kt)
@@ -104,7 +116,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 ## 測試
 
-`./gradlew :core:test` 目前 233 條，涵蓋：
+`./gradlew :core:test` 目前 240 條，涵蓋：
 
 - **四個 HTML parser 的 fixture 解析**（`core/src/test/resources/fixtures/`，皆為合成資料）
 - **踩過的坑的回歸測試**：「本週任務整季卡在第 1 期」、「上傳窗關了按鈕還在」、
@@ -143,9 +155,10 @@ instrumented test — 見下方待辦。
 1. **拿真實帳號跑一次完整流程**（登入 → 上傳 → 審核 → 兌換 → OTP → 出示條碼）。
    目前只驗過示範模式；真實流程的每一步都會動到官網的次數限制，要省著測。
 2. `androidTest` 補 Keystore 落地、cookie 跨啟動續用、登出真的清空。
-3. 設計素材：App 圖示目前是佔位向量（`ic_launcher_foreground.xml` 與歡迎頁的
-   `AppMark` 兩處要一起換）；字型也還是系統 sans（iOS 端用 SF Rounded 代替設計稿的 Baloo 2）。
-4. Google Play 上架：資料安全表單、隱私權政策（可沿用 iOS 端的 `site/`）、
-   商店截圖（可以擴充 `DemoFlowTest` 順便產，iOS 端就是那樣做的）。
-5. Firebase：到 Console 開 Android app（debug 的 applicationId 有 `.debug` 後綴，要各開一個），
-   把 `google-services.json` 放進 `app/`。
+3. 設計素材：App 圖示已沿用 iOS 版（`mipmap-*/ic_launcher_foreground.png` 與 monochrome）；
+   字型還是系統 sans（iOS 端用 SF Rounded 代替設計稿的 Baloo 2）。
+4. Google Play 上架：商店截圖（可以擴充 `DemoFlowTest` 順便產，iOS 端就是那樣做的）、
+   資料安全表單與內容分級（草稿在 `docs/play-store/`）。
+5. Firebase：release 已接上（`app/google-services.json`，不進版控）。**debug 刻意不接**——
+   `app/build.gradle.kts` 停用 `processDebugGoogleServices`，所以 debug 版的遙測全程 no-op。
+   還沒做的是到 Cloud Console 給 API key 加上套件名稱限制。
