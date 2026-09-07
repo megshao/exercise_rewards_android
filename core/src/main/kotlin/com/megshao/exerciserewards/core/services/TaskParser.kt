@@ -23,7 +23,7 @@ public object TaskParser {
      * 解析整頁 HTML，回傳依卡片出現順序排列的任務清單。
      *
      * @throws AppError.Parsing 當頁面內完全找不到任何 `period-card` 卡片時
-     * （代表頁面結構跟預期不符）。
+     * （代表頁面結構跟預期不符）。UI 層拿到這個錯誤會走 [SiteHandoff] 的交接畫面。
      */
     public fun parse(html: String): List<TaskPeriod> {
         val cards = splitCards(html)
@@ -33,23 +33,38 @@ public object TaskParser {
         return cards.mapIndexed { offset, card -> parseCard(card, fallbackIndex = offset + 1) }
     }
 
-    /** 把整份 HTML 依 `<li class="period-card` 切成一張一張卡片的原始片段。 */
+    /**
+     * 把整份 HTML 依卡片的 `<li>` 開頭切成一張一張的原始片段。每一塊從標記開始，
+     * 到下一個標記／`</ul>`／文件尾為止（切法與 [RedeemParser] 相同）。
+     *
+     * 只保留**真的含有卡片內容**（`period-state--` 或 `period-range`）的塊——官網每一期都有這
+     * 兩樣，頁面上若有別的 `<li>` 剛好帶著 `period-card` 這個 token（導覽、圖例），不會被當成一期。
+     *
+     * **為什麼用正則而不是比對 `<li class="period-card"` 這個完整字串**（這裡改過一次，
+     * 與 [RedeemParser.splitRowBlocks] 是同一類問題）：完整字串比對把 class 屬性的**寫法**也當成
+     * 契約的一部分。官網只要調換 class 順序（`class="card period-card"`）、在 `<li>` 上多加一個
+     * 排在 class 前面的屬性、改用單引號、或 `=` 兩側多一個空白，就會**一張卡都切不到**——
+     * [parse] 丟出 [AppError.Parsing]，整個任務頁死掉，而官網的 DOM 契約其實一個字都沒變。
+     * [RedeemParser] 那邊同樣的失敗還有退回路徑可以撐住，這裡沒有，所以更該把邊界改成
+     * 「class 裡有 `period-card` 這個 token」。
+     *
+     * `\bperiod-card\b` 的邊界行為：`period-card--current` 會被匹配（`-` 不是 word char），
+     * `period-card__title` 不會（`_` 是 word char，`\b` 擋掉）——子元素不會被誤切成一張卡。
+     */
     private fun splitCards(html: String): List<String> {
-        val marker = "<li class=\"period-card"
-        val cards = mutableListOf<String>()
-        var searchStart = 0
+        val starts = periodCardOpenTagRegex.findAll(html).map { it.range.first }.toList()
+        if (starts.isEmpty()) return emptyList()
 
-        while (true) {
-            val cardStart = html.indexOf(marker, searchStart)
-            if (cardStart < 0) break
-            val nextSearchStart = cardStart + marker.length
-            val nextMarker = html.indexOf(marker, nextSearchStart)
+        val cards = mutableListOf<String>()
+        for ((offset, cardStart) in starts.withIndex()) {
             val cardEnd = when {
-                nextMarker >= 0 -> nextMarker
-                else -> html.indexOf("</ul>", nextSearchStart).takeIf { it >= 0 } ?: html.length
+                offset + 1 < starts.size -> starts[offset + 1]
+                else -> html.indexOf("</ul>", cardStart).takeIf { it >= 0 } ?: html.length
             }
-            cards.add(html.substring(cardStart, cardEnd))
-            searchStart = nextSearchStart
+            val card = html.substring(cardStart, cardEnd)
+            if (card.contains("period-state--") || card.contains("period-range")) {
+                cards.add(card)
+            }
         }
         return cards
     }
@@ -67,6 +82,14 @@ public object TaskParser {
     //
     // 另一道獨立防線在 OkHttpHttpClient：response body 超過 2 MB 直接丟
     // AppError.ResponseTooLarge，parser 根本不會看到超長輸入。
+
+    /**
+     * 卡片的開頭標籤。**刻意不比對完整字串** `<li class="period-card"`——見 [splitCards]。
+     * 樣式字串與 [RedeemParser] 的 `itemRowOpenTagRegex` 逐字相同（只換 token），
+     * 也與 iOS 端的 `TaskParser.swift` 一致，方便跨 repo grep 對照。
+     */
+    private val periodCardOpenTagRegex =
+        compile("""<li\b[^<>]{0,400}\bclass\s{0,8}=\s{0,8}["'][^"']{0,300}\bperiod-card\b[^"']{0,300}["'][^<>]{0,400}>""")
 
     private val indexRegex = compile("""第\s{0,8}(\d{1,6})\s{0,8}期""")
     private val rangeRegex = compile("""period-range">\s{0,8}([0-9/]{1,40})\s{0,8}~\s{0,8}([0-9/]{1,40})""")
