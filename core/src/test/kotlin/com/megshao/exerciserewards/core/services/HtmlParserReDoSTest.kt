@@ -55,7 +55,7 @@ class HtmlParserReDoSTest {
     /** 原 `period-remaining">\s*([^<]+?)\s*<`：`\s` ⊂ `[^<]`，三層量詞互相回溯。 */
     @Test
     fun `task parser remaining text with unterminated whitespace`() {
-        val html = """<li class="period-card"><span class="period-remaining">""" + pad
+        val html = CARD_OPEN + """<span class="period-remaining">""" + pad
         assertPrompt("TaskParser.period-remaining（純空白、無收尾 `<`）") { runCatching { TaskParser.parse(html) } }
     }
 
@@ -63,34 +63,51 @@ class HtmlParserReDoSTest {
     @Test
     fun `task parser remaining text with a mixed whitespace run`() {
         val filler = " a  b ".repeat(ADVERSARIAL_LENGTH / 6)
-        val html = """<li class="period-card"><span class="period-remaining">""" + filler
+        val html = CARD_OPEN + """<span class="period-remaining">""" + filler
         assertPrompt("TaskParser.period-remaining（空白-字元-空白交錯）") { runCatching { TaskParser.parse(html) } }
     }
 
     @Test
     fun `task parser uploaded at with unterminated whitespace`() {
-        val html = """<li class="period-card">上傳時間：""" + pad
+        val html = CARD_OPEN + "上傳時間：" + pad
         assertPrompt("TaskParser.上傳時間") { runCatching { TaskParser.parse(html) } }
     }
 
     @Test
     fun `task parser reviewed at with unterminated whitespace`() {
-        val html = """<li class="period-card">審核時間：""" + pad
+        val html = CARD_OPEN + "審核時間：" + pad
         assertPrompt("TaskParser.審核時間") { runCatching { TaskParser.parse(html) } }
     }
 
     /** `第\s*(\d+)\s*期` / `period-range">…([0-9/]+)…`：長數字串的 O(n²)。 */
     @Test
     fun `task parser index and range with a long digit run`() {
-        val html = """<li class="period-card">第""" + digits + """<span class="period-range">""" + digits
+        val html = CARD_OPEN + "第" + digits + """<span class="period-range">""" + digits
         assertPrompt("TaskParser.第 N 期／period-range（超長數字串）") { runCatching { TaskParser.parse(html) } }
     }
 
     /** 大量未閉合標籤：`[^>]*` 會一路掃到文件尾（改用 `[^<>]` 後在下一個 `<` 就停）。 */
     @Test
     fun `task parser with many unclosed tags`() {
-        val html = """<li class="period-card">""" + "<span ".repeat(ADVERSARIAL_LENGTH / 6)
+        val html = CARD_OPEN + "<span ".repeat(ADVERSARIAL_LENGTH / 6)
         assertPrompt("TaskParser（大量未閉合標籤）") { runCatching { TaskParser.parse(html) } }
+    }
+
+    /**
+     * 切卡片的開頭標籤改成正則之後多出來的攻擊面：大量未閉合 `<li `。
+     * `[^<>]{0,400}` 有上限、且在下一個 `<` 就停，所以每個 `<li` 的嘗試成本是常數，整體線性。
+     */
+    @Test
+    fun `task parser with many unclosed list items`() {
+        val html = "<li ".repeat(ADVERSARIAL_LENGTH / 4)
+        assertPrompt("TaskParser.splitCards（大量未閉合 <li）") { runCatching { TaskParser.parse(html) } }
+    }
+
+    /** 同一件事的另一個形狀：`<li` 後面接一個永遠閉不起來的超長 class 屬性。 */
+    @Test
+    fun `task parser with an unterminated class attribute`() {
+        val html = """<li class="period-card """ + "a".repeat(ADVERSARIAL_LENGTH)
+        assertPrompt("TaskParser.splitCards（class 屬性未閉合）") { runCatching { TaskParser.parse(html) } }
     }
 
     // MARK: - VoucherParser
@@ -191,9 +208,11 @@ class HtmlParserReDoSTest {
 
     @Test
     fun `remaining text is trimmed but preserves inner spacing`() {
+        // 空的 `period-range` 是卡片骨架標記（理由同 CARD_OPEN）：沒有它這塊不會被當成卡片。
         val html = """
             <ul class="period-list">
             <li class="period-card">
+            <span class="period-range"></span>
             <span class="period-remaining">
               剩 1 天 22 小時
             </span>
@@ -299,7 +318,7 @@ class HtmlParserReDoSTest {
     )
 
     private fun adversarialInputs(bytes: Int) = AdversarialInputs(
-        task = """<li class="period-card"><span class="period-remaining">""" + " ".repeat(bytes),
+        task = CARD_OPEN + """<span class="period-remaining">""" + " ".repeat(bytes),
         csrf = "<input ".repeat(bytes / 7),
         redeem = "<form ".repeat(bytes / 6),
         voucher = FIGURE + "兌換期限：" + " ".repeat(bytes),
@@ -318,6 +337,13 @@ class HtmlParserReDoSTest {
 
         /** 每個樣式的 CPU 成本上限。 */
         const val BUDGET = 0.1
+
+        /**
+         * 一張卡片的開頭。`TaskParser.splitCards` 只保留含有 `period-state--`／`period-range` 的塊，
+         * 所以對抗輸入**必須帶一個**，否則在碰到被測的樣式之前就以 Parsing 收場——測試會綠，
+         * 但什麼都沒量到。這裡放的是空的 `period-range`，不會餵給 `rangeRegex` 任何內容。
+         */
+        const val CARD_OPEN = """<li class="period-card"><span class="period-range"></span>"""
 
         /** 一個合法的 `voucher-figure`，讓 parseView 不會在抓到 figure 之前就丟錯。 */
         const val FIGURE =

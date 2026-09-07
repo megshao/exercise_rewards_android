@@ -42,6 +42,8 @@ import com.megshao.exerciserewards.AppContainer
 import com.megshao.exerciserewards.core.models.Voucher
 import com.megshao.exerciserewards.core.models.VoucherFigure
 import com.megshao.exerciserewards.core.models.VoucherOtpResult
+import com.megshao.exerciserewards.core.services.SiteHandoff
+import com.megshao.exerciserewards.core.services.SiteHandoffDestination
 import com.megshao.exerciserewards.telemetry.AnalyticsEvent
 import com.megshao.exerciserewards.telemetry.AnalyticsValue
 import com.megshao.exerciserewards.telemetry.BarcodeFormat
@@ -61,6 +63,7 @@ import com.megshao.exerciserewards.ui.components.InfoBanner
 import com.megshao.exerciserewards.ui.components.OtpCodeField
 import com.megshao.exerciserewards.ui.components.PrimaryButton
 import com.megshao.exerciserewards.ui.components.SecondaryButton
+import com.megshao.exerciserewards.ui.components.SiteHandoffMessage
 import com.megshao.exerciserewards.ui.components.clickableRow
 import com.megshao.exerciserewards.ui.theme.Tokens
 import com.megshao.exerciserewards.ui.theme.displayStyle
@@ -112,29 +115,41 @@ public fun VoucherScreen(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        when (val stage = state.stage) {
-            VoucherViewModel.Stage.NeedsOtp -> NeedsOtpCard(
-                errorMessage = state.needsOtpError,
-                isSending = state.isSendingOtp,
-                onSend = { viewModel.sendOtp(isResend = false) },
+        when {
+            // 券碼頁結構對不上（見 core 的 SiteHandoff.shouldHandoff）——三個階段的任一步都可能
+            // 撞到，所以擺在狀態機外面。使用者可能正站在櫃檯前，所以這一句要把「到官網也得再驗
+            // 一次簡訊」講明白，讓他知道接下來還要等一封簡訊，而不是以為到官網就能立刻出示。
+            state.siteChangeSuspected -> SiteHandoffMessage(
+                destination = SiteHandoffDestination.Voucher(taskId),
+                description = "這支 App 讀不到官網券碼頁的資料，可能是官網改版了。" +
+                    "你可以先到官網完成——券碼在官網一樣要重新驗證一次簡訊才會顯示，我們會盡快修正。",
+                onRetry = viewModel::restart,
             )
 
-            VoucherViewModel.Stage.EnterCode -> EnterCodeCard(
-                otp = state.otp,
-                onOtpChange = viewModel::updateOtp,
-                errorMessage = state.enterCodeError,
-                resendCountdown = state.resendCountdown,
-                isBusy = state.isVerifying || state.isLoadingVoucher,
-                isSending = state.isSendingOtp,
-                onResend = { viewModel.sendOtp(isResend = true) },
-                onVerify = viewModel::verify,
-            )
+            else -> when (val stage = state.stage) {
+                VoucherViewModel.Stage.NeedsOtp -> NeedsOtpCard(
+                    errorMessage = state.needsOtpError,
+                    isSending = state.isSendingOtp,
+                    onSend = { viewModel.sendOtp(isResend = false) },
+                )
 
-            is VoucherViewModel.Stage.Showing -> VoucherContent(
-                voucher = stage.voucher,
-                isMarkedUsed = usedIds.contains(taskId),
-                onToggleUsed = viewModel::toggleUsed,
-            )
+                VoucherViewModel.Stage.EnterCode -> EnterCodeCard(
+                    otp = state.otp,
+                    onOtpChange = viewModel::updateOtp,
+                    errorMessage = state.enterCodeError,
+                    resendCountdown = state.resendCountdown,
+                    isBusy = state.isVerifying || state.isLoadingVoucher,
+                    isSending = state.isSendingOtp,
+                    onResend = { viewModel.sendOtp(isResend = true) },
+                    onVerify = viewModel::verify,
+                )
+
+                is VoucherViewModel.Stage.Showing -> VoucherContent(
+                    voucher = stage.voucher,
+                    isMarkedUsed = usedIds.contains(taskId),
+                    onToggleUsed = viewModel::toggleUsed,
+                )
+            }
         }
 
         Spacer(Modifier.size(20.dp))
@@ -416,6 +431,11 @@ public class VoucherViewModel(
         val needsOtpError: String? = null,
         val enterCodeError: String? = null,
         val resendCountdown: Int = 0,
+        /**
+         * 最近一次失敗是不是「官網結構對不上」（core 的 `SiteHandoff.shouldHandoff`）。
+         * 發送 OTP、驗證、抓券碼三步任一步撞到都算——都是同一個券碼頁的結構。
+         */
+        val siteChangeSuspected: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -456,10 +476,21 @@ public class VoucherViewModel(
                 )
                 _state.value = _state.value.copy(
                     isSendingOtp = false,
+                    // 官網結構對不上時畫面走交接畫面，這句「請確認網路連線」不會被顯示出來。
+                    siteChangeSuspected = SiteHandoff.shouldHandoff(error),
                     needsOtpError = "驗證碼發送失敗，請確認網路連線後重試",
                 )
             }
         }
+    }
+
+    /**
+     * 從交接畫面按「重新整理」：整個狀態機回到 [Stage.NeedsOtp] 重來。
+     * 合規要求本來就是每次都重新驗證，這裡沒有可以「接著上次」的東西。
+     */
+    public fun restart() {
+        stopCountdown()
+        _state.value = State()
     }
 
     public fun verify() {
@@ -527,6 +558,7 @@ public class VoucherViewModel(
                 Telemetry.logEvent(context, AnalyticsEvent.voucherOtpVerify(OtpVerifyOutcome.ERROR, null))
                 _state.value = _state.value.copy(
                     isVerifying = false,
+                    siteChangeSuspected = SiteHandoff.shouldHandoff(error),
                     enterCodeError = "驗證失敗，請確認網路連線後重試",
                 )
             }
@@ -566,6 +598,8 @@ public class VoucherViewModel(
             )
             _state.value = _state.value.copy(
                 isLoadingVoucher = false,
+                // 券碼頁解析不出來是改版最直接的訊號；使用者正站在櫃檯前，這裡最該說實話。
+                siteChangeSuspected = SiteHandoff.shouldHandoff(error),
                 enterCodeError = "驗證成功，但券碼載入失敗，請重新整理",
             )
         }

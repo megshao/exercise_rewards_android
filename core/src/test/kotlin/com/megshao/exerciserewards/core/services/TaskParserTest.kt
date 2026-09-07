@@ -142,6 +142,148 @@ class TaskParserTest {
         assertEquals("全家便利商店／50+3元加碼券 & 贈品", TaskParser.parse(html).first().voucherSummary)
     }
 
+    // MARK: - 切卡片的邊界：class 裡有 `period-card` 這個 token，而不是整段字串
+    //
+    // 舊做法比對完整字串 `<li class="period-card"`，把 class 屬性的寫法也當成契約。
+    // 官網只要調換 class 順序、多一個屬性、改單引號、`=` 兩側多空白，就一張卡都切不到
+    // → parse 丟 Parsing → 整個任務頁死掉，而 DOM 契約其實一個字都沒變。
+    // 下面每一條都是「官網那樣改，我們照樣要切得到」。
+
+    /** class 順序調換：`period-card` 排在後面。 */
+    @Test
+    fun `splits a card whose class list puts period-card last`() {
+        val period = TaskParser.parse(cardHtml("""<li class="card period-card">""")).single()
+        assertEquals(TaskState.NOT_STARTED, period.state)
+        assertEquals(7, period.index)
+    }
+
+    /** 額外的 class：官網加了修飾 class 也還是同一張卡。 */
+    @Test
+    fun `splits a card with extra classes around period-card`() {
+        val period = TaskParser.parse(cardHtml("""<li class="card period-card period-card--current is-open">""")).single()
+        assertEquals(7, period.index)
+    }
+
+    /** `<li>` 上有排在 class 前面的屬性（`data-*`、`id`）。 */
+    @Test
+    fun `splits a card with attributes before class`() {
+        val period = TaskParser.parse(cardHtml("""<li data-period="7" id="p7" class="period-card">""")).single()
+        assertEquals(7, period.index)
+    }
+
+    /** 單引號。 */
+    @Test
+    fun `splits a card whose class uses single quotes`() {
+        val period = TaskParser.parse(cardHtml("""<li class='period-card'>""")).single()
+        assertEquals(7, period.index)
+    }
+
+    /** `class = "` 兩側多空白。 */
+    @Test
+    fun `splits a card with spaces around the class equals sign`() {
+        val period = TaskParser.parse(cardHtml("""<li class = "period-card">""")).single()
+        assertEquals(7, period.index)
+    }
+
+    /** 屬性跨行：`<li` 與 `class` 之間有換行也照樣是同一個開頭標籤。 */
+    @Test
+    fun `splits a card whose opening tag spans lines`() {
+        val period = TaskParser.parse(cardHtml("<li\n    data-x=\"1\"\n    class=\"period-card\">")).single()
+        assertEquals(7, period.index)
+    }
+
+    /**
+     * `period-card__*` 是卡片**裡面**的子元素（BEM 的 element），不是另一張卡。
+     * `\bperiod-card\b` 在 `_` 前面不成立（`_` 是 word char），所以不會被誤切——
+     * 誤切的後果是一期被拆成兩張、後面那張的 index 退回 fallback。
+     */
+    @Test
+    fun `does not split on period-card element classes inside a card`() {
+        val html = """
+            <ul class="period-list">
+              <li class="period-card">
+                <span class="period-no">第 7 期</span>
+                <ul class="period-card__meta">
+                  <li class="period-card__title">標題</li>
+                  <li class="period-card__range period-range">2026/10/12 ~ 2026/10/18</li>
+                </ul>
+                <p class="period-state period-state--NOT_STARTED"><span>尚未開始</span></p>
+              </li>
+            </ul>
+        """.trimIndent()
+
+        val periods = TaskParser.parse(html)
+        assertEquals(1, periods.size)
+        assertEquals(7, periods.single().index)
+    }
+
+    /** 相對地，`period-card--current` 是 modifier（`-` 不是 word char），一定要被當成卡片開頭。 */
+    @Test
+    fun `splits on period-card modifier classes`() {
+        val html = """
+            <ul class="period-list">
+              <li class="period-card--current period-card">
+                <span class="period-no">第 1 期</span>
+                <p class="period-state period-state--NOT_UPLOADED"><span>尚未上傳</span></p>
+              </li>
+              <li class="period-card">
+                <span class="period-no">第 2 期</span>
+                <p class="period-state period-state--NOT_STARTED"><span>尚未開始</span></p>
+              </li>
+            </ul>
+        """.trimIndent()
+
+        assertEquals(listOf(1, 2), TaskParser.parse(html).map { it.index })
+    }
+
+    /**
+     * 頁面上別的 `<li>` 剛好帶著 `period-card` token（導覽、圖例），但沒有卡片該有的
+     * `period-state--`／`period-range`——不能被當成一期，否則會多出一張 index 是 fallback 的幽靈卡。
+     */
+    @Test
+    fun `ignores list items that carry the token but no card content`() {
+        val html = """
+            <ul class="legend">
+              <li class="period-card legend__item">圖例：當期以琥珀色標示</li>
+            </ul>
+            <ul class="period-list">
+              <li class="period-card">
+                <span class="period-no">第 7 期</span>
+                <span class="period-range">2026/10/12 ~ 2026/10/18</span>
+                <p class="period-state period-state--NOT_STARTED"><span>尚未開始</span></p>
+              </li>
+            </ul>
+        """.trimIndent()
+
+        val periods = TaskParser.parse(html)
+        assertEquals(1, periods.size)
+        assertEquals(7, periods.single().index)
+    }
+
+    /** 只有圖例、沒有真的卡片：仍然要丟 Parsing，交接畫面才會出來。 */
+    @Test
+    fun `throws when the only period-card items have no card content`() {
+        val html = """<ul><li class="period-card legend__item">圖例</li></ul>"""
+        assertFailsWith<AppError.Parsing> { TaskParser.parse(html) }
+    }
+
+    /** 官網現行寫法當然也還要切得到（與 fixture 同一種形狀，這條是給上面那些變體對照用的）。 */
+    @Test
+    fun `still splits the canonical card markup`() {
+        assertEquals(7, TaskParser.parse(cardHtml("""<li class="period-card">""")).single().index)
+    }
+
+    /** 同一張卡的內容，只換 `<li>` 開頭標籤的寫法。 */
+    private fun cardHtml(openTag: String): String = """
+        <ul class="period-list">
+          $openTag
+            <span class="period-no">第 7 期</span>
+            <span class="period-range">2026/10/12 ~ 2026/10/18</span>
+            <p class="period-state period-state--NOT_STARTED"><span>尚未開始</span></p>
+          </li>
+        </ul>
+    """.trimIndent()
+
     // MARK: - 端到端回歸：真實頁面 + 真實日期
 
     /**

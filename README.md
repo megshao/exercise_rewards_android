@@ -57,7 +57,7 @@
 
 **任務**列出 14 期。當期用琥珀色雙邊線高亮，卡片上是「上傳 → 審核 → 兌換」的進度時間軸與剩餘可上傳時間；
 已兌換的期別在下方。「本週是哪一期」「這一期還能不能上傳」是**規則不是排版**，所以寫在
-`:core` 而不是 Composable 裡——寫在 `if` 裡的規則沒有任何測試搆得到，搬進 `core` 之後才有 240 條測試守著。
+`:core` 而不是 Composable 裡——寫在 `if` 裡的規則沒有任何測試搆得到，搬進 `core` 之後才有 268 條測試守著。
 
 **券夾**把券分成「可兌換」（任務完成但還沒選通路）與「可使用」（已兌換、可出示條碼）兩區。
 「標記為已使用」是**純本機紀錄**，只是幫你分辨哪幾張還沒用——實際能不能用以門市掃碼為準。
@@ -151,7 +151,7 @@ docs/          開發與上架文件（`verify-network.md` 自行驗證網路行
 
 - **`core` 不含任何 Android 相依。** 領域規則（「本週是哪一期」「這一期還能不能上傳」）
   是**規則不是排版**，寫在 Composable 裡的 `if` 沒有任何測試搆得到；搬進 `core` 之後
-  它們才有 240 個單元測試守著。
+  它們才有 268 個單元測試守著。
 - **加密不依賴 `androidx.security:security-crypto`。** Google 已經把那整包標記為
   deprecated；這個 App 的賣點就是資料安全，開場不押停止維護的加密相依。
   [`KeystoreCrypto`](app/src/main/kotlin/com/megshao/exerciserewards/data/KeystoreCrypto.kt)
@@ -190,7 +190,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 ## 測試
 
-`./gradlew :core:test` 目前 240 條，涵蓋：
+`./gradlew :core:test` 目前 268 條，涵蓋：
 
 - **四個 HTML parser 的 fixture 解析**（`core/src/test/resources/fixtures/`，皆為合成資料）
 - **踩過的坑的回歸測試**：「本週任務整季卡在第 1 期」、「上傳窗關了按鈕還在」、

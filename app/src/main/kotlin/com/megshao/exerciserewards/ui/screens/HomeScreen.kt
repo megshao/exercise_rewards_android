@@ -50,6 +50,8 @@ import com.megshao.exerciserewards.core.models.TaskPeriod
 import com.megshao.exerciserewards.core.models.TaskState
 import com.megshao.exerciserewards.core.models.canUpload
 import com.megshao.exerciserewards.core.models.current
+import com.megshao.exerciserewards.core.services.SiteHandoff
+import com.megshao.exerciserewards.core.services.SiteHandoffDestination
 import com.megshao.exerciserewards.telemetry.AnalyticsEvent
 import com.megshao.exerciserewards.telemetry.Endpoint
 import com.megshao.exerciserewards.telemetry.FailReason
@@ -63,6 +65,8 @@ import com.megshao.exerciserewards.ui.components.LoadingBlock
 import com.megshao.exerciserewards.ui.components.PillButton
 import com.megshao.exerciserewards.ui.components.PrimaryButton
 import com.megshao.exerciserewards.ui.components.RemainingTime
+import com.megshao.exerciserewards.ui.components.SiteHandoffBanner
+import com.megshao.exerciserewards.ui.components.SiteHandoffMessage
 import com.megshao.exerciserewards.ui.components.StatusBadge
 import com.megshao.exerciserewards.ui.components.TaskStateBadge
 import com.megshao.exerciserewards.ui.components.TaskStepper
@@ -117,12 +121,23 @@ public fun HomeScreen(
         ) {
             HomeHeader(greeting = state.greeting, onOpenProfile = onOpenProfile)
 
+            // 有快取時照舊顯示，但不再靜默沿用：頂端講明白這可能是舊資料（理由同任務頁）。
+            if (state.showsSiteChangeBanner) {
+                SiteHandoffBanner(
+                    destination = SiteHandoffDestination.Tasks,
+                    onDismiss = viewModel::dismissSiteChangeBanner,
+                )
+            }
+
             LoginCta(state = state, onRetryLogin = viewModel::loginTapped, onOpenProfile = onOpenProfile)
 
             WeeklyTaskSection(
                 task = state.currentWeekTask,
                 isLoading = state.isLoadingSummary,
+                // 完全沒資料且是官網結構對不上：本週任務區改畫交接畫面，而不是「下拉重新整理試試」。
+                showsSiteHandoff = state.siteChangeSuspected && state.periods.isEmpty(),
                 onOpenTasks = onOpenTasks,
+                onRetry = { viewModel.refresh(force = true) },
             )
 
             VoucherSection(
@@ -259,7 +274,9 @@ private fun LoginCta(
 private fun WeeklyTaskSection(
     task: TaskPeriod?,
     isLoading: Boolean,
+    showsSiteHandoff: Boolean,
     onOpenTasks: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -276,6 +293,12 @@ private fun WeeklyTaskSection(
         when {
             isLoading -> LoadingBlock(topPadding = 20.dp)
             task != null -> TaskSummaryCard(task)
+            showsSiteHandoff -> SiteHandoffMessage(
+                destination = SiteHandoffDestination.Tasks,
+                onRetry = onRetry,
+                topPadding = 8.dp,
+            )
+
             else -> Text("目前沒有任務資料，下拉重新整理試試。", fontSize = 13.sp, color = Tokens.muted)
         }
     }
@@ -521,6 +544,14 @@ public class HomeViewModel(
         val isRefreshing: Boolean = false,
         /** 首頁的加碼券區塊要跨期別排序，因此保留整份清單而非只留高亮那一期。 */
         val periods: List<TaskPeriod> = emptyList(),
+        /**
+         * 最近一次抓取或登入失敗是不是「官網結構對不上」（core 的 `SiteHandoff.shouldHandoff`）。
+         * 冷啟動第一次抓取失敗**不算**——那幾乎都是 session 過期（見 [HomeViewModel.bootstrap]），
+         * 要等自動登入之後那一次的結果才知道。
+         */
+        val siteChangeSuspected: Boolean = false,
+        /** 有快取時頂端的改版橫幅。可關掉，但下一次失敗會重新出現。 */
+        val showsSiteChangeBanner: Boolean = false,
     ) {
         /** 本週要高亮的那一期。規則見 core 的 `TaskPeriod.current`。 */
         val currentWeekTask: TaskPeriod?
@@ -623,15 +654,40 @@ public class HomeViewModel(
         val source = if (force) TasksSource.POST_LOGIN else TasksSource.HOME_REFRESH
         try {
             val fetched = container.environment.value.tasks.fetchTasks()
-            _state.value = _state.value.copy(periods = fetched, isLoadingSummary = false)
+            _state.value = _state.value.copy(
+                periods = fetched,
+                isLoadingSummary = false,
+                siteChangeSuspected = false,
+                showsSiteChangeBanner = false,
+            )
             container.tasksCache.save(fetched)
             reportFetchSuccess(source, fetched, hadCache, startedAt)
         } catch (error: Throwable) {
             _state.value = _state.value.copy(isLoadingSummary = false)
             // post_login 的解析失敗才是改版訊號；一般刷新可能只是 session 剛過期。
             reportFetchFailure(source, error, hadCache, startedAt, sessionProbable = !force)
-            // 有快取就沿用，不清掉。
+            // 有快取就沿用，不清掉——但若是官網結構對不上，要在畫面上講明白（見 markSiteChange）。
+            markSiteChange(error)
         }
+    }
+
+    /**
+     * 抓取或登入失敗後，判斷要不要在畫面上走「官網可能已改版」那條路。
+     *
+     * 判斷本身在 core（`SiteHandoff.shouldHandoff`，有測試守著），這裡只把結果放進 state：
+     * 沒資料 → 本週任務區畫交接畫面；有快取 → 頂端掛橫幅。非改版的失敗一律維持原本的處理。
+     */
+    private fun markSiteChange(error: Throwable) {
+        val siteChange = SiteHandoff.shouldHandoff(error)
+        _state.value = _state.value.copy(
+            siteChangeSuspected = siteChange,
+            showsSiteChangeBanner = siteChange && _state.value.periods.isNotEmpty(),
+        )
+    }
+
+    /** 使用者關掉頂端的改版橫幅。只關這一次——下次失敗會重新出現。 */
+    public fun dismissSiteChangeBanner() {
+        _state.value = _state.value.copy(showsSiteChangeBanner = false)
     }
 
     /** 依加密儲存裡的個資判斷登入必要欄位是否齊全。 */
@@ -723,6 +779,9 @@ public class HomeViewModel(
                 loginResultIsError = true,
                 loginResultMessage = messageFor(error),
             )
+            // `/access` 與 `/login` 是公開頁：這裡解析失敗不可能是 session 過期，一律當改版訊號看
+            // （與 OnboardingScreen 同一個判斷）。
+            markSiteChange(error)
             val reason = Telemetry.reportFailure(context, error, Endpoint.LOGIN)
             Telemetry.logEvent(context, AnalyticsEvent.loginFailed(trigger, reason, Telemetry.elapsedMs(startedAt)))
         }
@@ -793,9 +852,10 @@ public class HomeViewModel(
 
         internal fun messageFor(error: Throwable): String = when (error) {
             is AppError.Network -> "網路連線異常，請檢查網路後再試一次"
-            is AppError.CsrfNotFound, is AppError.UnexpectedResponse,
-            is AppError.Parsing, is AppError.ResponseTooLarge,
-            -> "官網回應異常，請稍後再試"
+            // 登入頁結構對不上＝官網可能改版了。「請稍後再試」在這個情境下是假的希望——
+            // 要等 App 更新才會好，先說實話；「前往官網」在下方的本週任務區。
+            is AppError.CsrfNotFound, is AppError.Parsing -> "官網可能已改版，這支 App 暫時讀不到登入頁"
+            is AppError.UnexpectedResponse, is AppError.ResponseTooLarge -> "官網回應異常，請稍後再試"
 
             is AppError.NotLoggedIn -> "尚未登入，請先完成一鍵登入"
             is AppError.BlockedEgress -> "偵測到非官方網域連線，已阻擋"

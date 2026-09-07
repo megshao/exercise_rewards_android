@@ -65,6 +65,7 @@
   <li><strong>不進雲端備份、不隨換機轉移。</strong><code>android:allowBackup="false"</code>，另外 <code>data_extraction_rules.xml</code> 把雲端備份與「裝置對裝置轉移」兩條路徑都設成全部排除。換機或重裝要重新輸入，這是刻意的設計。</li>
   <li><strong>你的登入 session（cookie）比照個資同級加密。</strong>cookie 在這裡等同帳號憑證，不會因為它「只是 cookie」而降級成明文存放。</li>
   <li>絕不寫入明文的 <code>SharedPreferences</code>、設定檔或任何檔案，也不會出現在任何紀錄檔（logcat）中。</li>
+  <li><strong>唯一會離開加密儲存的例外，是你自己按下「複製身分證號」。</strong>官方網站改版、App 讀不到頁面時，錯誤畫面上會多一顆這樣的按鈕，讓你到官方網站少打一個欄位。只有你按下它，身分證號（只有這一個欄位）才會放進系統剪貼簿；App 不會自己複製任何東西。剪貼簿是整支手機共用的，其他 App（尤其是鍵盤）可能讀得到，Android 13 以上會把它標成敏感內容、預覽時遮罩。貼完建議再複製別的內容把它覆蓋掉。</li>
 </ul>
 <p>
   一個 Android 特有的說明：Google 官方的 <code>androidx.security:security-crypto</code>（<code>EncryptedSharedPreferences</code>）已被標記為 deprecated，本 App <strong>刻意不用它</strong>，改用平台 API 自己實作一個幾十行、可以讀完的
@@ -341,7 +342,7 @@
   <li>唯一會碰 Firebase 的檔案是 <code>app/src/main/kotlin/com/megshao/exerciserewards/telemetry/Telemetry.kt</code>；
       網域白名單在 <code>core/src/main/kotlin/com/megshao/exerciserewards/core/networking/OkHttpHttpClient.kt</code>（<code>isAllowedHost</code>）；
       加密在 <code>app/src/main/kotlin/com/megshao/exerciserewards/data/KeystoreCrypto.kt</code>。從這三個檔案開始讀，就能掌握全部的對外出口與資料落地方式。</li>
-  <li>領域邏輯全部放在 <code>core</code> 這個<strong>不依賴 Android SDK</strong> 的模組裡，所以你不用模擬器也能跑完它的單元測試：<code>./gradlew :core:test</code>（目前 240 條）。</li>
+  <li>領域邏輯全部放在 <code>core</code> 這個<strong>不依賴 Android SDK</strong> 的模組裡，所以你不用模擬器也能跑完它的單元測試：<code>./gradlew :core:test</code>（目前 268 條）。</li>
   <li>相依版本鎖在 <code>gradle/libs.versions.toml</code>，建置需要 JDK 21。</li>
   <li><strong>Android 特有的一層：反編譯商店版。</strong>Android 的安裝檔<strong>沒有</strong>類似 iOS FairPlay 的程式碼加密，所以你可以把裝到手機上的版本抽出來
       （<code>adb shell pm path com.megshao.exercise_rewards</code> 再 <code>adb pull</code>），用 <code>apktool</code> 看它的程式清單、用 <code>jadx</code> 看它的程式碼。

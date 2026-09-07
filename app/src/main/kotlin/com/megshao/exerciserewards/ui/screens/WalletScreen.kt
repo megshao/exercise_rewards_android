@@ -41,6 +41,8 @@ import androidx.lifecycle.viewModelScope
 import com.megshao.exerciserewards.AppContainer
 import com.megshao.exerciserewards.core.models.TaskPeriod
 import com.megshao.exerciserewards.core.models.TaskState
+import com.megshao.exerciserewards.core.services.SiteHandoff
+import com.megshao.exerciserewards.core.services.SiteHandoffDestination
 import com.megshao.exerciserewards.telemetry.AnalyticsEvent
 import com.megshao.exerciserewards.telemetry.Endpoint
 import com.megshao.exerciserewards.telemetry.ScreenName
@@ -52,6 +54,8 @@ import com.megshao.exerciserewards.ui.components.LoadingBlock
 import com.megshao.exerciserewards.ui.components.PrimaryButton
 import com.megshao.exerciserewards.ui.components.SecondaryButton
 import com.megshao.exerciserewards.ui.components.SectionTitle
+import com.megshao.exerciserewards.ui.components.SiteHandoffBanner
+import com.megshao.exerciserewards.ui.components.SiteHandoffMessage
 import com.megshao.exerciserewards.ui.components.StateMessage
 import com.megshao.exerciserewards.ui.components.StatusBadge
 import com.megshao.exerciserewards.ui.components.clickableRow
@@ -112,6 +116,14 @@ public fun WalletScreen(
             when {
                 state.isLoading && isEmpty -> LoadingBlock()
 
+                // 官網結構對不上（見 core 的 SiteHandoff.shouldHandoff）：不是「請先回首頁登入」
+                // 能解決的事，說實話並交接到官網的任務清單（券夾的內容就是從那一頁抓的）。
+                state.siteChangeSuspected && isEmpty -> SiteHandoffMessage(
+                    destination = SiteHandoffDestination.Tasks,
+                    onRetry = viewModel::refresh,
+                    topPadding = 60.dp,
+                )
+
                 state.errorMessage != null && isEmpty -> StateMessage(
                     icon = Icons.Filled.Warning,
                     iconTint = Tokens.danger,
@@ -127,6 +139,13 @@ public fun WalletScreen(
                 )
 
                 else -> {
+                    // 刷新失敗時上一輪的資料還留著；照舊顯示，但頂端講明白它可能是舊的。
+                    if (state.showsSiteChangeBanner) {
+                        SiteHandoffBanner(
+                            destination = SiteHandoffDestination.Tasks,
+                            onDismiss = viewModel::dismissSiteChangeBanner,
+                        )
+                    }
                     if (state.redeemable.isNotEmpty()) {
                         SectionTitle("可兌換")
                         state.redeemable.forEach { RedeemableCard(it) { onRedeem(it) } }
@@ -284,6 +303,10 @@ public class WalletViewModel(
         val isLoading: Boolean = false,
         val isRefreshing: Boolean = false,
         val errorMessage: String? = null,
+        /** 最近一次抓取失敗是不是「官網結構對不上」（core 的 `SiteHandoff.shouldHandoff`）。 */
+        val siteChangeSuspected: Boolean = false,
+        /** 還有上一輪資料時頂端的改版橫幅。可關掉，但下一次失敗會重新出現。 */
+        val showsSiteChangeBanner: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -305,6 +328,8 @@ public class WalletViewModel(
                     redeemable = periods.filter { it.state == TaskState.REDEEMABLE },
                     isLoading = false,
                     isRefreshing = false,
+                    siteChangeSuspected = false,
+                    showsSiteChangeBanner = false,
                 )
                 Telemetry.logEvent(
                     context,
@@ -322,13 +347,23 @@ public class WalletViewModel(
                     context,
                     AnalyticsEvent.tasksFetchFailed(TasksSource.WALLET, reason, hadCache, Telemetry.elapsedMs(startedAt)),
                 )
+                // 「官網結構對不上」與其他失敗分開：前者畫面走交接畫面，這句原文案不會被顯示；
+                // 其餘（網路、未登入……）維持原本的處理與文案。
+                val siteChange = SiteHandoff.shouldHandoff(error)
                 _state.value = _state.value.copy(
                     isLoading = false,
                     isRefreshing = false,
+                    siteChangeSuspected = siteChange,
+                    showsSiteChangeBanner = siteChange && hadCache,
                     errorMessage = "無法載入券夾，請先回首頁登入，或稍後重試。",
                 )
             }
         }
+    }
+
+    /** 使用者關掉頂端的改版橫幅。只關這一次——下次失敗會重新出現。 */
+    public fun dismissSiteChangeBanner() {
+        _state.value = _state.value.copy(showsSiteChangeBanner = false)
     }
 
     /** 切換「已使用」標記。寫進共用 store，三個分頁會一起重畫。 */
