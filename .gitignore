@@ -1,0 +1,21 @@
+# Gradle / Android
+.gradle/
+build/
+/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+captures/
+.cxx/
+
+# Firebase：設定檔含專案識別碼，不進版控（範本見 app/google-services.json.template）
+app/google-services.json
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+
+# macOS
+.DS_Store
