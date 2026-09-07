@@ -6,6 +6,42 @@
          運動紀錄一律由使用者自己從相簿挑選（照 iOS 端的設計）。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+        **移掉 Firebase Analytics 自動塞進來的三個廣告權限。**
+
+        `play-services-measurement-impl` 會宣告 `AD_ID`（讀取 Google 廣告識別碼），
+        `play-services-measurement-api` 會宣告兩個 Privacy Sandbox 的 AdServices 權限。
+        這個 App 沒有廣告、沒有廣告歸因、沒有跨 App 追蹤——留著它們有兩個實際代價：
+
+        1. Play 的「資料安全」表單必須勾「收集廣告識別碼」，那是一句假話。
+        2. 使用者在系統設定裡看 App 權限時會看到「廣告識別碼」，而我們的隱私權
+           頁面正好在保證不做這件事。權限清單是使用者能自己查核的第一層證據，
+           它必須跟文件一致。
+
+        移掉 `AD_ID` 是 Google 官方文件記載的做法（Analytics 會改用不含廣告 ID 的
+        識別）。兩個 AdServices 權限只有歸因回報路徑會用到，沒有廣告來源可歸因時
+        本來就不會被呼叫。
+
+        驗證方式：`./gradlew :app:processReleaseMainManifest` 之後跑下面這段，
+        應該印出 `AD_ID 命中: 0`。**不要直接對固定路徑下 grep -c**：AGP 的
+        intermediates 路徑會隨版本改（這裡同時存在 merged_manifest 與
+        merged_manifests 兩個目錄），路徑一錯 grep -c 就印 0——看起來像通過，
+        其實什麼都沒檢查到。
+
+        M=$(find app/build/intermediates -name AndroidManifest.xml -path "*merged_manifest/release/*" | head -1)
+        [ -n "$M" ] || { echo "找不到合併後的 manifest，先 build"; exit 1; }
+        echo "AD_ID 命中: $(grep -c AD_ID "$M")"
+    -->
+    <uses-permission
+        android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_ADSERVICES_AD_ID"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION"
+        tools:node="remove" />
+
     <application
         android:name=".ExerciseRewardsApplication"
         android:allowBackup="false"
