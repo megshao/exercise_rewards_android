@@ -1,5 +1,6 @@
 package com.megshao.exerciserewards.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -23,10 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.megshao.exerciserewards.R
 import com.megshao.exerciserewards.ui.components.PrimaryButton
 import com.megshao.exerciserewards.ui.theme.Tokens
 import com.megshao.exerciserewards.ui.theme.displayStyle
@@ -115,27 +117,25 @@ public fun WelcomeScreen(onStart: () -> Unit) {
 }
 
 /**
- * 佔位的 App 標記。
+ * App 標記——**沿用 iOS 版本的圖示本體**（`app_mark.png` 就是 iOS 的 `icon_1024.png` 縮放而來）。
  *
- * iOS 端用的是 app icon 本體（第一個畫面上的圖案與桌面上那顆圖示一致，使用者才對得起來
- * 「我點的就是這個 App」）。Android 這邊的圖示目前也還是佔位向量，等設計稿到位後
- * **兩處要一起換**：`res/drawable/ic_launcher_foreground.xml` 與這裡。
+ * 第一個畫面上的圖案要與桌面上那顆圖示一致，使用者才對得起來「我點的就是這個 App」
+ * ——這也是 iOS 端刻意用 app icon 本體、而不是隨便一個 symbol 的理由。
+ *
+ * 這裡可以直接用原圖，因為它不會被任何遮罩裁切；桌面那顆圖示則必須重新排版
+ * （理由見 `res/mipmap-anydpi-v26/ic_launcher.xml` 的註解）。
+ *
+ * 圓角比例 22.37% 對齊 iOS 圖示的 continuous 圓角。
  */
 @Composable
 private fun AppMark() {
-    Box(
+    val shape = RoundedCornerShape((96 * 0.2237f).dp)
+    Image(
+        painter = painterResource(R.drawable.app_mark),
+        contentDescription = null,
         modifier = Modifier
             .size(96.dp)
-            .clip(RoundedCornerShape(96 * 0.2237f))
-            .background(Tokens.primaryGradient)
-            .border(1.dp, Color.Black.copy(alpha = 0.06f), RoundedCornerShape(96 * 0.2237f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            Icons.Filled.DirectionsRun,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(52.dp),
-        )
-    }
+            .clip(shape)
+            .border(1.dp, Color.Black.copy(alpha = 0.06f), shape),
+    )
 }

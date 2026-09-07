@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    沿用 iOS 版本的圖示設計（橘色漸層底 + 傾斜的黃色票券 + 白色汗滴 + 撕線）。
+
+    **為什麼前景是重新排版過的，而不是直接放 iOS 那張 PNG**：iOS 的圖案佔滿整個方形，
+    票券寬度是畫面的 70.7%；Android 的 adaptive icon 只保證中央 66.6%（72dp）不被遮罩切掉，
+    直接搬過來票券兩端會被圓形遮罩削掉。所以票券縮到畫布的 57.4% 重新置中，
+    幾何（傾角 -6.9°、圓角、凹口、撕線與汗滴的相對位置）全部照 iOS 原圖實測值換算。
+
+    色票也是從 iOS 原圖取樣的，剛好就是 App 的設計 token：
+    漸層 = Tokens.primaryGradient、票券 #FFC24D = amber、陰影 #E8480F = primaryDark。
+
+    Play 商店那張 512×512（app/ic_launcher-playstore.png）與歡迎頁的圖示
+    （drawable-nodpi/app_mark.png）則是 iOS 原圖直接縮放，像素級一致——
+    那兩處不會被遮罩裁切，所以不需要重新排版。
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
 </adaptive-icon>
