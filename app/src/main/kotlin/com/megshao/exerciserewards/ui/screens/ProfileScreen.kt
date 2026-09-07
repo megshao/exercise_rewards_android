@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -193,6 +194,20 @@ public fun ProfileScreen(onDataCleared: () -> Unit) {
                     TelemetryRow(
                         enabled = state.isTelemetryEnabled,
                         onToggle = viewModel::setTelemetryEnabled,
+                    )
+                    RowDivider()
+
+                    // 隱私權政策：**Play 的 User Data 政策要求政策連結同時出現在
+                    // Console 的欄位「與 App 內」**，只填 Console 是不合規的。
+                    // 放在這裡而不是塞進免責聲明，是因為使用者想回頭查的時候會來設定頁找。
+                    SettingsRow(
+                        icon = Icons.Filled.PrivacyTip,
+                        iconTint = Tokens.text,
+                        iconBackground = Tokens.disabledBackground,
+                        title = "隱私權政策",
+                        subtitle = "收什麼、送去哪、怎麼自己查證，逐節寫清楚",
+                        trailing = Icons.Filled.OpenInNew,
+                        onClick = { openPrivacyPolicy(context) },
                     )
                     RowDivider()
 
@@ -403,8 +418,31 @@ private fun RowDivider() {
     HorizontalDivider(modifier = Modifier.padding(start = 62.dp), color = Tokens.line)
 }
 
+/**
+ * 開啟 Android 版的原始碼 repo。
+ *
+ * **這裡原本指向 `exercise_rewards_ios`** —— 從 iOS 端 port 過來時漏改的。
+ * 一支 Android App 的「原始碼」按鈕開出 iOS 的 repo，等於把可查證性這件事做假：
+ * 使用者照著讀完 Swift 也驗證不到手上這支 App 的任何行為。
+ */
 private fun openSourceCode(context: Context) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/megshao/exercise_rewards_ios"))
+    openUrl(context, "https://github.com/megshao/exercise_rewards_android")
+}
+
+/**
+ * 開啟隱私權政策。
+ *
+ * 網址是 Android repo 自己的 GitHub Pages，**不是 iOS 那一份**：兩邊的技術敘述不同
+ * （Keychain 對 Android Keystore、iCloud 對 allowBackup、App 隱私權報告對抓包工具），
+ * 把 iOS 的政策掛給 Android 使用者看，內容會是錯的——那比沒有政策更糟。
+ */
+private fun openPrivacyPolicy(context: Context) {
+    openUrl(context, "https://megshao.github.io/exercise_rewards_android/privacy.html")
+}
+
+/** 以外部瀏覽器開啟網址。開不起來（沒有瀏覽器）時安靜略過，不讓設定頁因此當掉。 */
+private fun openUrl(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
     runCatching { context.startActivity(intent) }
 }
 
