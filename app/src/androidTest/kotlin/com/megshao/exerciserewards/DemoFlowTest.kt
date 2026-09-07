@@ -124,7 +124,9 @@ class DemoFlowTest {
             rule.onAllNodesWithText("可兌換").fetchSemanticsNodes().isNotEmpty()
         }
 
-        rule.onNodeWithText("可兌換").performScrollTo().assertIsDisplayed()
+        // 「可兌換」有兩個節點：券夾的區塊標題（WalletScreen 的 SectionTitle）與卡片上的
+        // 狀態徽章（StatusBadge）。這裡要驗的是**區塊**存在，取第一個（組合順序上標題在前）。
+        rule.onAllNodesWithText("可兌換").onFirst().performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("可使用的加碼券").performScrollTo().assertIsDisplayed()
 
         // 標記一張為已使用 → 應該移到「已使用」區並換成「還原成未使用」
@@ -132,7 +134,11 @@ class DemoFlowTest {
         rule.waitUntil(timeoutMillis = 5_000) {
             rule.onAllNodesWithText("還原成未使用").fetchSemanticsNodes().isNotEmpty()
         }
-        rule.onNodeWithText("已使用").performScrollTo().assertIsDisplayed()
+        // 同樣不要用「已使用」：它既是區塊標題也是卡片徽章（兩個節點）。這一句只在
+        // 已使用的卡片裡出現，所以它證明的是**卡片真的移到已使用狀態**，比「有個叫已使用
+        // 的節點」精確。（ScreenshotTest 的取景捲動踩過同一個坑，兩邊用同一個目標。）
+        rule.onNodeWithText("你在 App 內標記為已使用", substring = true)
+            .performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -151,7 +157,10 @@ class DemoFlowTest {
 
         // ⚠️ 兌換會消耗真實次數且不可更換，所以列表上的「兌換」只是開確認框，不會直接送出。
         rule.onAllNodesWithText("兌換").onFirst().performClick()
-        rule.onNodeWithText("確認兌換").assertIsDisplayed()
+        // **不要用「確認兌換」當斷言目標**：對話框的標題與確認按鈕都是這四個字，會撞到兩個
+        // 節點。改用對話框內文裡唯一的那一句——而且它更精確地表達了這條測試要驗的東西：
+        // 出現的是**二次確認**，不只是某個叫「確認兌換」的節點。
+        rule.onNodeWithText("兌換後不可更換", substring = true).assertIsDisplayed()
         rule.onNodeWithText("取消").performClick()
         // 取消後仍停在清單，沒有送出。
         rule.onNodeWithText("全家便利商店").assertIsDisplayed()
