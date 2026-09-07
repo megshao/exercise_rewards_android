@@ -188,3 +188,18 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.crashlytics)
 }
+
+// **Firebase 只接 release，debug 刻意不接。**
+//
+// 理由有兩個：不想為了 `.debug` 後綴在 Firebase Console 再開一個 app，也不想讓開發時
+// 亂點出來的事件與當機混進正式資料。
+//
+// 做法是把 debug 那個變體的 google-services 任務關掉。它不產生 `google_app_id` 資源，
+// `FirebaseApp.initializeApp()` 就會回 null，`Telemetry` 全程 no-op——那條路徑本來就存在，
+// 也正是任何沒有設定檔的人 clone 這個 repo 之後看到的行為（見 README）。
+//
+// 代價要說清楚：**debug 版驗不到「同意之後 Firebase 才真的初始化」的完整行為**，
+// 只驗得到「沒有設定檔時安全地什麼都不做」。要驗完整那條，請跑 release 版。
+tasks.matching { it.name == "processDebugGoogleServices" }.configureEach {
+    enabled = false
+}
