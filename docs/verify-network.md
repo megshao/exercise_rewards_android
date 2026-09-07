@@ -385,7 +385,6 @@ App **沒有登出按鈕**，所以你不會看到 `POST /registrant/logout`。c
 
 ## 7. 發現異常怎麼回報
 
-- 信箱：megshao0918@gmail.com
 - GitHub issue：<https://github.com/megshao/exercise_rewards_android/issues>
 
 請附：App 版本（「我的資料」頁最底下）、Android 版本、手機型號、你看到的網域或欄位名、
