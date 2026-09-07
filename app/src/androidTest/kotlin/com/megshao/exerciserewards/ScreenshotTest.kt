@@ -1,6 +1,10 @@
 package com.megshao.exerciserewards
 
+import android.app.Instrumentation
+import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Build
+import android.net.Uri
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -11,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.matcher.IntentMatchers
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.megshao.exerciserewards.data.DemoMode
@@ -177,6 +183,10 @@ class ScreenshotTest {
         scrollToForFraming("第 6 期")
         rule.onNodeWithText("上傳運動紀錄").performScrollTo().performClick()
         awaitText("從相簿選擇截圖")
+        // 空的上傳頁有七成畫面是空白，當商店素材說服力很低。塞一張真的運動紀錄截圖進去，
+        // 拍到的是使用者實際會看到的「已選圖」狀態。
+        pickDemoExerciseRecord()
+        awaitText("確認上傳")
         capture("06-upload")
         pressBack()
 
@@ -262,6 +272,49 @@ class ScreenshotTest {
     }
 
     /**
+     * 讓上傳頁進入「已選好一張截圖」的狀態。
+     *
+     * 上傳頁走的是系統相片選擇器（`ActivityResultContracts.PickVisualMedia`），那是**另一個
+     * 行程的 Activity**，Compose 的測試規則碰不到它。所以這裡用 espresso-intents 攔下那個
+     * Intent，直接回一個指向測試資產的 `file://` URI。
+     *
+     * **刻意不改產品程式碼、也不在事後合成假畫面**：
+     * - 不改產品碼——為了拍照在 `UploadScreen` 開一個後門，是拿產品的正確性換素材。
+     * - 不合成——那樣商店上的截圖會是 App 從未真正渲染過的狀態，那是造假。
+     *
+     * 這條路還有一個附帶好處：`onPicked` 之後的 [ImageReencoder] 是**真的跑過**的，
+     * 所以這張截圖同時證明了「重新編碼後仍然顯示得出來」。
+     *
+     * 資產是一張真實的步數統計截圖，EXIF 已在進版控前清除（本來也會被 ImageReencoder 去掉）。
+     */
+    private fun pickDemoExerciseRecord() {
+        // **兩個 context 不能混。** 資產打包在**測試 APK** 裡，要用
+        // `instrumentation.context`；`targetContext` 是被測 App，它的 assets 裡沒有這個檔案
+        // （踩過：FileNotFoundException: demo-exercise-record.png）。
+        // 檔案要寫到**被測 App** 的 cache，因為之後是它在讀這個 file:// URI。
+        val testContext = instrumentation.context
+        val appContext = instrumentation.targetContext
+        val file = File(appContext.cacheDir, DEMO_RECORD_ASSET).apply {
+            outputStream().use { out ->
+                testContext.assets.open(DEMO_RECORD_ASSET).use { it.copyTo(out) }
+            }
+        }
+        val result = Instrumentation.ActivityResult(
+            android.app.Activity.RESULT_OK,
+            Intent().setData(Uri.fromFile(file)),
+        )
+        Intents.init()
+        try {
+            Intents.intending(IntentMatchers.anyIntent()).respondWith(result)
+            rule.onNodeWithText("從相簿選擇截圖").performClick()
+            rule.waitForIdle()
+        } finally {
+            // 一定要 release，否則後面每一個 Activity 啟動都會被這個 stub 攔下來。
+            Intents.release()
+        }
+    }
+
+    /**
      * 為了取景而捲動，**失敗不讓整個流程掛掉**。
      *
      * 這種捲動只影響「畫面上看得到什麼」，不影響畫面本身對不對。真正的導覽步驟該硬失敗，
@@ -275,6 +328,24 @@ class ScreenshotTest {
     private fun scrollToForFraming(text: String) {
         runCatching { rule.onNodeWithText(text).performScrollTo() }
             .onFailure { framingFailures += "  取景捲動失敗（不影響畫面正確性）：$text — ${it.message?.lineSequence()?.firstOrNull()}" }
+    }
+
+    /**
+     * 收起軟鍵盤。
+     *
+     * **這一步不是潔癖，是消除不確定性。** 填完欄位之後鍵盤要不要留著是時序決定的，
+     * 實測同一個畫面在不同輪次拍出 170 KB 與 243 KB 兩種結果——差別就是半個畫面
+     * 被鍵盤蓋住。商店素材每跑一次就換一個樣子是不能接受的，所以每張拍照前一律收鍵盤。
+     *
+     * 走 `WindowInsetsController` 而不是按返回鍵：返回鍵在鍵盤沒開時會**改成導覽上一頁**，
+     * 那會把流程走歪。
+     */
+    private fun hideSoftKeyboard() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        rule.activityRule.scenario.onActivity { activity ->
+            activity.window.insetsController?.hide(android.view.WindowInsets.Type.ime())
+        }
+        rule.waitForIdle()
     }
 
     /**
@@ -301,6 +372,7 @@ class ScreenshotTest {
      * 商店素材要的是「使用者眼睛看到的那一整塊」，所以用系統層級的截圖。
      */
     private fun capture(name: String) {
+        hideSoftKeyboard()
         rule.waitForIdle()
         // Compose 的進場動畫與 Mock 的延遲都不在 waitForIdle 的管轄內，留一點時間讓畫面定住。
         Thread.sleep(SETTLE_MS)
@@ -324,5 +396,8 @@ class ScreenshotTest {
 
         /** 取景捲動失敗的報告檔名，由 `scripts/capture-screenshots.sh` 讀出來顯示。 */
         const val FRAMING_REPORT = "_framing-failures.txt"
+
+        /** 上傳頁要用的示範運動紀錄截圖（androidTest 資產，不進正式 APK）。 */
+        const val DEMO_RECORD_ASSET = "demo-exercise-record.png"
     }
 }

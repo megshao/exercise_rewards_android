@@ -180,6 +180,9 @@ dependencies {
     // 但 `FirebaseApp.initializeApp` 找不到設定就回 null，`Telemetry` 全程 no-op。
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    // 只給截圖流程用：攔截系統相片選擇器的回傳，讓上傳頁能拍到「已選圖」的樣子。
+    // 見 ScreenshotTest.pickDemoExerciseRecord()。
+    androidTestImplementation(libs.androidx.espresso.intents)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
