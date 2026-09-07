@@ -6,7 +6,7 @@
 > **這是非官方工具，與運動部及任何政府機關沒有隸屬、合作、贊助或授權關係。**
 > 活動規則與最終權益一律以官方公告為準。
 
-這是 [iOS 版](../exercise-rewards-ios)（`megshao/sports_rewards_ios`）的 Android 對應實作。
+這是 [iOS 版](https://github.com/megshao/sports_rewards_ios) 的 Android 對應實作。
 兩邊是同一份領域邏輯的兩次實作，**型別名稱刻意保持一致**（`HTTPClienting`、`AuthServicing`、
 `TaskParser`…），這樣跨 repo 可以直接 grep 對照。
 
@@ -16,8 +16,82 @@
 | 建置 | AGP 9.4 / Gradle 9.7 / Kotlin 2.2.10 / **JDK 21** / compileSdk 37 |
 | 第三方相依 | OkHttp、kotlinx-serialization、Firebase（Analytics + Crashlytics）。**加密不依賴第三方函式庫**，只用平台 Keystore |
 | 授權 | MIT（[`LICENSE`](LICENSE)） |
+| 隱私權政策 | <https://megshao.github.io/exercise_rewards_android/privacy.html> |
+| 刪除帳戶與資料 | <https://megshao.github.io/exercise_rewards_android/delete-account.html> |
+| 支援與 FAQ | <https://megshao.github.io/exercise_rewards_android/support.html> |
 
 ---
+
+## 畫面
+
+全部在**示範模式**下拍攝，所以下面每一張都**沒有任何真實個資**（示範帳號是刻意設計的哨兵值
+`A000000000`，檢查碼不合法，真實使用者不可能誤觸）。原始圖在
+[`docs/screenshots/raw/`](docs/screenshots/raw)，由
+[`scripts/capture-screenshots.sh`](scripts/capture-screenshots.sh) 走完整流程自動產生；
+這裡的縮圖由 [`docs/screenshots/readme/make-thumbs.py`](docs/screenshots/readme/make-thumbs.py) 產生。
+
+### 首次啟動：把揭露擋在功能前面
+
+| 免責聲明 | 個資填寫 |
+|---|---|
+| <img src="docs/screenshots/readme/01-disclaimer.png" width="240"> | <img src="docs/screenshots/readme/02-login.png" width="240"> |
+
+**免責聲明**擋在所有功能之前，三個區塊分別講「這不是官方 App」「你的資料只在你手機裡」
+「畫面上的內容來自官方網站」。按下「同意並開始使用」**是整支 App 第一次執行 Firebase 程式碼的時機**
+——在那之前一行都沒跑。這件事在 Android 上需要額外的功夫：`firebase-common` 會自己塞一個
+`FirebaseInitProvider`，而 `ContentProvider.onCreate` 早於 `Application.onCreate`，
+所以 manifest 用 `tools:node="remove"` 把它整個移掉（詳見[架構](#架構)）。
+
+**個資填寫**只收三欄，畫面上那段綠色說明就是承諾本身：這三欄以 AES-256-GCM 加密只存在這支手機。
+出生日期走自製滾輪並**同時顯示西元與民國**——那裡踩過一個坑（中央高亮與實際選取值不一致），
+現在由 `visibleItemsInfo` 算出真正靠近視窗中心的那一項，不再用 `firstVisibleItemIndex` 猜。
+
+### 主畫面的三個分頁
+
+| 首頁 | 任務 | 券夾 |
+|---|---|---|
+| <img src="docs/screenshots/readme/03-home.png" width="240"> | <img src="docs/screenshots/readme/04-tasks.png" width="240"> | <img src="docs/screenshots/readme/09-wallet.png" width="240"> |
+
+**首頁**把「這週要做什麼」和「手上有什麼券」放在同一頁——本週任務置頂，下面是加碼券清單，
+不需要在分頁之間來回找。
+
+**任務**列出 14 期。當期用琥珀色雙邊線高亮，卡片上是「上傳 → 審核 → 兌換」的進度時間軸與剩餘可上傳時間；
+已兌換的期別在下方。「本週是哪一期」「這一期還能不能上傳」是**規則不是排版**，所以寫在
+`:core` 而不是 Composable 裡——寫在 `if` 裡的規則沒有任何測試搆得到，搬進 `core` 之後才有 240 條測試守著。
+
+**券夾**把券分成「可兌換」（任務完成但還沒選通路）與「可使用」（已兌換、可出示條碼）兩區。
+「標記為已使用」是**純本機紀錄**，只是幫你分辨哪幾張還沒用——實際能不能用以門市掃碼為準。
+
+### 任務流程：上傳 → 兌換 → 出示條碼
+
+| 上傳運動紀錄 | 兌換 | 券碼 |
+|---|---|---|
+| <img src="docs/screenshots/readme/06-upload.png" width="240"> | <img src="docs/screenshots/readme/08-redeem.png" width="240"> | <img src="docs/screenshots/readme/10-voucher.png" width="240"> |
+
+**上傳**從相簿挑一張運動紀錄截圖。選好圖之後畫面上會多一行字：
+「送出前已重新編碼，原始檔案的 EXIF（含 GPS 位置）不會一起上傳。」那不是宣傳語——相簿原檔的
+EXIF 常含 GPS 座標，那是「你在哪裡運動」的精確位置，你按確認上傳時完全不會預期它跟著走。
+重新編碼是唯一的去識別化手段，所以它**沒有 fallback**：編碼失敗就報錯，絕不退回送出原檔。
+
+**兌換**列出各通路。「兌換品項」可以先看該通路實際能換到什麼再決定；右邊的「兌換」**只開確認框、
+不直接送出**——兌換會消耗真實次數而且不可更換，這種動作不該一鍵完成。
+
+**券碼**每次進來都要重走一次簡訊驗證（合規要求，不是我們加的關卡）。兩段式券的兩段條碼都會顯示，
+缺一不可。條碼是**在本機用 ZXing 畫出來的**，不經任何服務（Android 沒有內建的條碼產生器，
+iOS 端用的是 CoreImage）。
+
+### 我的資料
+
+| 我的資料 |
+|---|
+| <img src="docs/screenshots/readme/11-profile.png" width="240"> |
+
+三個欄位預設遮罩顯示，要點一下才展開。下面「安全與隱私」那張卡片把這個 App 的立場攤開：
+加密方式與金鑰位置（AES-256-GCM／Android Keystore）、匿名使用統計的開關與它到底送什麼、
+隱私權政策與原始碼的連結、以及一鍵永久清除本機資料。
+
+那顆「立即清除本機資料」是真的清乾淨：個資、登入 cookie、任務快取、已使用標記、同意紀錄
+與遙測偏好全部歸零，App 回到剛安裝的狀態，下次啟動會重新看到免責聲明。
 
 ## 這個 App 怎麼看待你的資料
 
